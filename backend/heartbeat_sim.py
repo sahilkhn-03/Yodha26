@@ -191,8 +191,8 @@ class SimulationEngine:
                 # Broadcast to all WebSocket clients
                 await self.broadcast_to_websockets(data)
 
-                # Wait before next update (2 Hz = 500ms)
-                await asyncio.sleep(0.5)
+                # Wait before next update (4 Hz = 250ms for faster ECG)
+                await asyncio.sleep(0.25)
     
     async def broadcast_to_websockets(self, data: HeartbeatData):
         """Send data to all connected WebSocket clients"""
@@ -431,11 +431,11 @@ async def websocket_heartbeat(websocket: WebSocket):
 @app.get("/", response_class=HTMLResponse)
 async def live_monitor():
     """
-    Live EKG-style heartbeat monitor dashboard.
+    Live ECG-style heartbeat monitor dashboard.
     
     Opens in browser at: http://localhost:8001/
     
-    Real-time visualization with EKG waveform display.
+    Real-time visualization with ECG waveform display.
     API accessible at /heartbeat/current for ML models.
     """
     html_content = """
@@ -444,7 +444,7 @@ async def live_monitor():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EKG Heartbeat Monitor</title>
+    <title>ECG Heartbeat Monitor</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -474,8 +474,8 @@ async def live_monitor():
             border: 2px solid #999999;
         }
         
-        /* EKG Display */
-        .ekg-container {
+        /* ECG Display */
+        .ecg-container {
             background: #f5f5f5;
             border-radius: 15px;
             padding: 20px;
@@ -484,13 +484,13 @@ async def live_monitor():
             position: relative;
             overflow: hidden;
         }
-        .ekg-header {
+        .ecg-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
         }
-        .ekg-title {
+        .ecg-title {
             color: #000000;
             font-size: 20px;
             font-weight: 600;
@@ -509,8 +509,8 @@ async def live_monitor():
             margin-left: 10px;
         }
         
-        /* EKG Canvas */
-        #ekgCanvas {
+        /* ECG Canvas */
+        #ecgCanvas {
             width: 100%;
             height: 200px;
             background: #ffffff;
@@ -691,19 +691,19 @@ async def live_monitor():
 </head>
 <body>
     <div class="container">
-        <h1>⚡ LIVE EKG MONITOR</h1>
+        <h1>⚡ LIVE ECG MONITOR</h1>
         
         <div class="monitor">
-            <!-- EKG Waveform Display -->
-            <div class="ekg-container">
-                <div class="ekg-header">
-                    <div class="ekg-title">Electrocardiogram</div>
+            <!-- ECG Waveform Display -->
+            <div class="ecg-container">
+                <div class="ecg-header">
+                    <div class="ecg-title">Electrocardiogram</div>
                     <div>
                         <span class="bpm-live" id="bpmLive">--</span>
                         <span class="bpm-unit">BPM</span>
                     </div>
                 </div>
-                <canvas id="ekgCanvas"></canvas>
+                <canvas id="ecgCanvas"></canvas>
             </div>
             
             <!-- Vital Signs -->
@@ -777,11 +777,11 @@ async def live_monitor():
         const maxLogEntries = 30;
         const API_BASE = window.location.origin;
         
-        // EKG Canvas Setup
-        const canvas = document.getElementById('ekgCanvas');
+        // ECG Canvas Setup
+        const canvas = document.getElementById('ecgCanvas');
         const ctx = canvas.getContext('2d');
-        let ekgData = [];
-        const maxDataPoints = 200;
+        let ecgData = [];
+        const maxDataPoints = 120;  // Reduced for faster scroll
         let animationId = null;
         
         // Set canvas size
@@ -793,35 +793,42 @@ async def live_monitor():
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
         
-        // Generate EKG waveform based on BPM
-        function generateEKGPoint(bpm, index) {
+        // Generate ECG waveform based on BPM
+        function generateECGPoint(bpm, index) {
             const beatsPerSecond = bpm / 60;
-            const samplesPerBeat = 50; // Adjust for waveform detail
+            // Keep consistent samples for proper waveform rendering
+            const samplesPerBeat = 25;
             const beatProgress = (index % samplesPerBeat) / samplesPerBeat;
+            
+            // Amplitude scales UP with BPM (higher HR = bigger waves)
+            // 60 BPM: scale 1.0, 90 BPM: scale 1.5, 120 BPM: scale 2.0, 150 BPM: scale 2.5
+            const amplitudeScale = 0.5 + (bpm / 60);
             
             let amplitude = 0;
             if (beatProgress < 0.1) {
                 // P wave
-                amplitude = Math.sin(beatProgress * 10 * Math.PI) * 20;
+                amplitude = Math.sin(beatProgress * 10 * Math.PI) * 35 * amplitudeScale;
             } else if (beatProgress < 0.3) {
                 // QRS complex
                 if (beatProgress < 0.2) {
-                    amplitude = -30;
+                    amplitude = -50 * amplitudeScale;
                 } else if (beatProgress < 0.25) {
-                    amplitude = 100; // R peak
+                    amplitude = 150 * amplitudeScale; // R peak - scales dramatically
                 } else {
-                    amplitude = -20;
+                    amplitude = -45 * amplitudeScale;
                 }
             } else if (beatProgress < 0.5) {
                 // T wave
-                amplitude = Math.sin((beatProgress - 0.3) * 5 * Math.PI) * 30;
+                amplitude = Math.sin((beatProgress - 0.3) * 5 * Math.PI) * 40 * amplitudeScale;
             }
             
-            return amplitude + Math.random() * 3; // Add noise
+            // Noise scales with BPM
+            const noiseLevel = 3 + (bpm / 50);
+            return amplitude + (Math.random() * 2 - 1) * noiseLevel;
         }
         
-        // Draw EKG waveform
-        function drawEKG() {
+        // Draw ECG waveform
+        function drawECG() {
             ctx.fillStyle = '#fff';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
@@ -842,7 +849,7 @@ async def live_monitor():
             }
             
             // Draw waveform
-            if (ekgData.length > 1) {
+            if (ecgData.length > 1) {
                 ctx.strokeStyle = '#000000';
                 ctx.lineWidth = 2;
                 ctx.shadowBlur = 10;
@@ -852,9 +859,9 @@ async def live_monitor():
                 const xStep = canvas.width / maxDataPoints;
                 const yCenter = canvas.height / 2;
                 
-                for (let i = 0; i < ekgData.length; i++) {
+                for (let i = 0; i < ecgData.length; i++) {
                     const x = i * xStep;
-                    const y = yCenter - ekgData[i];
+                    const y = yCenter - ecgData[i];
                     
                     if (i === 0) {
                         ctx.moveTo(x, y);
@@ -866,7 +873,7 @@ async def live_monitor():
                 ctx.shadowBlur = 0;
             }
             
-            animationId = requestAnimationFrame(drawEKG);
+            animationId = requestAnimationFrame(drawECG);
         }
 
         // Controls removed — simulation runs continuously on server.
@@ -894,11 +901,11 @@ async def live_monitor():
                 document.getElementById('systolic').textContent = data.systolic;
                 document.getElementById('diastolic').textContent = data.diastolic;
                 
-                // Update EKG waveform
-                const ekgPoint = generateEKGPoint(data.bpm, updateCount);
-                ekgData.push(ekgPoint);
-                if (ekgData.length > maxDataPoints) {
-                    ekgData.shift();
+                // Update ECG waveform
+                const ecgPoint = generateECGPoint(data.bpm, updateCount);
+                ecgData.push(ecgPoint);
+                if (ecgData.length > maxDataPoints) {
+                    ecgData.shift();
                 }
                 
                 // Update ML prediction display if available
@@ -947,7 +954,7 @@ async def live_monitor():
                 updateStatus('running', '🟢 LIVE MONITORING ACTIVE');
                 addLog('📊 Connecting to live session...');
                 connectWebSocket();
-                drawEKG();
+                drawECG();
             } catch (error) {
                 console.log('Startup connection failed:', error);
             }

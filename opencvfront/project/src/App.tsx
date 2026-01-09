@@ -5,6 +5,7 @@ import { CameraDisplay } from './components/CameraDisplay';
 import { StressGauge } from './components/StressGauge';
 import { MetricCard } from './components/MetricCard';
 import { TrendLineChart } from './components/TrendLineChart';
+import { ECGMonitor } from './components/ECGMonitor';
 import { Footer } from './components/Footer';
 
 interface FaceData {
@@ -117,6 +118,11 @@ function App() {
 
           {(!isCameraEnabled || faceDetected) && (
             <>
+              {/* ECG Monitor Section */}
+              <div className="mb-8">
+                <ECGMonitor />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <MetricCard
               title="Eye Openness"
