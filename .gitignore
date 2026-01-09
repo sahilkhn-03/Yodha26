@@ -11,9 +11,8 @@ ai/fer2013_data/
 *.zip
 *.tar.gz
 
-# Model files (too large for git)
-ai/models/*.pkl
+# Temporary model files (keep trained models in ai/models/)
 ai/*.pkl
 
-# Keep model directory structure
-!ai/models/.gitkeep
+# Keep trained models
+!ai/models/*.pkl
