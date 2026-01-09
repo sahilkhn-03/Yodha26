@@ -4,3 +4,16 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# Large dataset files (download separately)
+ai/ravdess_data/
+ai/fer2013_data/
+*.zip
+*.tar.gz
+
+# Model files (too large for git)
+ai/models/*.pkl
+ai/*.pkl
+
+# Keep model directory structure
+!ai/models/.gitkeep
