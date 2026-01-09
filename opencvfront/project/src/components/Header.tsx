@@ -26,7 +26,7 @@ export function Header({ isConnected }: HeaderProps) {
     <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 z-50">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         <h1 className="text-2xl font-light text-gray-800">
-           NeuroBalance <span className="font-normal text-gray-900">AI</span>
+           Facial Stress <span className="font-normal text-gray-900">Predictor</span>
         </h1>
 
         <div className="flex items-center gap-6">

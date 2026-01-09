@@ -36,7 +36,7 @@ except Exception as e:
     print("       Get it from: Supabase Dashboard -> Settings -> Database -> Connection String")
 
 app = FastAPI(
-    title="NeuroBalance AI Backend",
+    title="Facial Stress Predictor Backend",
     version="1.0.0",
     description="AI-driven psychosomatic assessment platform backend API",
     docs_url="/docs",  # Interactive API documentation
