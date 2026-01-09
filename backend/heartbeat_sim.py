@@ -408,7 +408,7 @@ async def live_monitor():
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0e27;
+            background: #ffffff;
             min-height: 100vh;
             padding: 20px;
         }
@@ -418,28 +418,28 @@ async def live_monitor():
         }
         h1 {
             text-align: center;
-            color: #00ff41;
+            color: #000000;
             margin-bottom: 30px;
             font-size: 42px;
-            text-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            text-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
             letter-spacing: 2px;
         }
         .monitor {
-            background: #1a1f3a;
+            background: #e5e5e5;
             border-radius: 20px;
             padding: 30px;
-            box-shadow: 0 20px 60px rgba(0, 255, 65, 0.2);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
-            border: 2px solid #00ff41;
+            border: 2px solid #999999;
         }
         
         /* EKG Display */
         .ekg-container {
-            background: #0d1117;
+            background: #f5f5f5;
             border-radius: 15px;
             padding: 20px;
             margin: 20px 0;
-            border: 2px solid #00ff41;
+            border: 2px solid #999999;
             position: relative;
             overflow: hidden;
         }
@@ -450,7 +450,7 @@ async def live_monitor():
             margin-bottom: 15px;
         }
         .ekg-title {
-            color: #00ff41;
+            color: #000000;
             font-size: 20px;
             font-weight: 600;
             text-transform: uppercase;
@@ -459,12 +459,12 @@ async def live_monitor():
         .bpm-live {
             font-size: 48px;
             font-weight: bold;
-            color: #00ff41;
-            text-shadow: 0 0 10px rgba(0, 255, 65, 0.8);
+            color: #000000;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
         }
         .bpm-unit {
             font-size: 20px;
-            color: #888;
+            color: #888888;
             margin-left: 10px;
         }
         
@@ -472,7 +472,7 @@ async def live_monitor():
         #ekgCanvas {
             width: 100%;
             height: 200px;
-            background: #000;
+            background: #ffffff;
             border-radius: 8px;
             display: block;
         }
@@ -485,27 +485,27 @@ async def live_monitor():
             margin: 20px 0;
         }
         .metric {
-            background: linear-gradient(135deg, #1a1f3a 0%, #0d1117 100%);
+            background: linear-gradient(135deg, #e5e5e5 0%, #f5f5f5 100%);
             padding: 25px;
             border-radius: 15px;
             text-align: center;
-            border: 2px solid #00ff41;
+            border: 2px solid #999999;
             transition: transform 0.3s ease;
         }
         .metric:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0, 255, 65, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
         }
         .metric-value {
             font-size: 48px;
             font-weight: bold;
-            color: #00ff41;
+            color: #000000;
             margin-bottom: 5px;
-            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
         .metric-label {
             font-size: 14px;
-            color: #888;
+            color: #888888;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
@@ -520,12 +520,12 @@ async def live_monitor():
         .bp-value {
             font-size: 48px;
             font-weight: bold;
-            color: #00ff41;
-            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+            color: #000000;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
         .bp-separator {
             font-size: 36px;
-            color: #666;
+            color: #999999;
         }
         
         /* Controls */
@@ -537,7 +537,7 @@ async def live_monitor():
         button {
             flex: 1;
             padding: 18px;
-            border: 2px solid #00ff41;
+            border: 2px solid #000000;
             border-radius: 12px;
             font-size: 18px;
             font-weight: 600;
@@ -546,24 +546,24 @@ async def live_monitor():
             text-transform: uppercase;
             letter-spacing: 1px;
             background: transparent;
-            color: #00ff41;
+            color: #000000;
         }
         button:hover {
-            background: #00ff41;
-            color: #0a0e27;
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+            background: #000000;
+            color: #ffffff;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
             transform: translateY(-2px);
         }
-        .btn-start { border-color: #00ff41; color: #00ff41; }
-        .btn-stress { border-color: #ff4136; color: #ff4136; }
-        .btn-stop { border-color: #ff851b; color: #ff851b; }
-        .btn-start:hover { background: #00ff41; }
-        .btn-stress:hover { background: #ff4136; }
-        .btn-stop:hover { background: #ff851b; }
+        .btn-start { border-color: #333333; color: #333333; }
+        .btn-stress { border-color: #777777; color: #777777; }
+        .btn-stop { border-color: #999999; color: #999999; }
+        .btn-start:hover { background: #333333; color: #ffffff; }
+        .btn-stress:hover { background: #777777; color: #ffffff; }
+        .btn-stop:hover { background: #999999; color: #000000; }
         .btn-stress:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-            background: rgba(255, 65, 54, 0.2);
+            background: rgba(136, 136, 136, 0.1);
         }
         
         /* Status */
@@ -577,19 +577,19 @@ async def live_monitor():
             border: 2px solid;
         }
         .status-stopped { 
-            background: rgba(255, 65, 54, 0.1);
-            color: #ff4136;
-            border-color: #ff4136;
+            background: rgba(102, 102, 102, 0.1);
+            color: #777777;
+            border-color: #999999;
         }
         .status-running { 
-            background: rgba(0, 255, 65, 0.1);
-            color: #00ff41;
-            border-color: #00ff41;
+            background: rgba(0, 0, 0, 0.05);
+            color: #000000;
+            border-color: #333333;
         }
         .status-connecting { 
-            background: rgba(255, 133, 27, 0.1);
-            color: #ff851b;
-            border-color: #ff851b;
+            background: rgba(136, 136, 136, 0.1);
+            color: #555555;
+            border-color: #777777;
         }
         
         /* Data Log */
@@ -598,44 +598,44 @@ async def live_monitor():
             overflow-y: auto;
             font-family: 'Courier New', monospace;
             font-size: 12px;
-            background: #000;
-            color: #00ff41;
+            background: #ffffff;
+            color: #333333;
             padding: 15px;
             border-radius: 10px;
             margin-top: 20px;
-            border: 2px solid #00ff41;
+            border: 2px solid #999999;
         }
         .log-entry {
             padding: 3px 0;
-            border-bottom: 1px solid #1a1f3a;
+            border-bottom: 1px solid #cccccc;
         }
         
         /* Info Panel */
         .info-panel {
-            background: #1a1f3a;
+            background: #e5e5e5;
             border-radius: 20px;
             padding: 30px;
-            border: 2px solid #00ff41;
+            border: 2px solid #999999;
         }
         .info-panel h2 {
-            color: #00ff41;
+            color: #000000;
             margin-bottom: 15px;
-            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
         .info-panel p {
-            color: #888;
+            color: #777777;
             line-height: 1.6;
             margin-bottom: 10px;
         }
         .api-endpoint {
-            background: #0d1117;
+            background: #f5f5f5;
             padding: 10px 15px;
             border-radius: 8px;
             font-family: 'Courier New', monospace;
             font-size: 14px;
-            color: #00ff41;
+            color: #333333;
             margin: 10px 0;
-            border: 1px solid #00ff41;
+            border: 1px solid #999999;
         }
         
         /* Pulse animation */
@@ -727,10 +727,10 @@ async def live_monitor():
             <p><strong>Returns JSON:</strong></p>
             <div class="api-endpoint">{"timestamp": "...", "bpm": 72, "systolic": 120, "diastolic": 80}</div>
             
-            <p style="margin-top: 20px; font-size: 14px; color: #00ff41;">
+            <p style="margin-top: 20px; font-size: 14px; color: #000000;">
                 💡 <strong>PUBLIC API:</strong> Any ML model can access this data at any time via the endpoints above.
             </p>
-            <p style="margin-top: 10px; font-size: 13px; color: #888;">
+            <p style="margin-top: 10px; font-size: 13px; color: #777777;">
                 ⚡ <strong>STRESS TRIGGERS:</strong> Stress occurs randomly (5-8% chance per update). 
                 ML models analyzing video/audio can trigger additional stress via input endpoints.
             </p>
@@ -788,11 +788,11 @@ async def live_monitor():
         
         // Draw EKG waveform
         function drawEKG() {
-            ctx.fillStyle = '#000';
+            ctx.fillStyle = '#fff';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             // Draw grid
-            ctx.strokeStyle = '#0a3d0a';
+            ctx.strokeStyle = '#dddddd';
             ctx.lineWidth = 1;
             for (let x = 0; x < canvas.width; x += 20) {
                 ctx.beginPath();
@@ -809,10 +809,10 @@ async def live_monitor():
             
             // Draw waveform
             if (ekgData.length > 1) {
-                ctx.strokeStyle = '#00ff41';
+                ctx.strokeStyle = '#000000';
                 ctx.lineWidth = 2;
                 ctx.shadowBlur = 10;
-                ctx.shadowColor = '#00ff41';
+                ctx.shadowColor = '#000000';
                 ctx.beginPath();
                 
                 const xStep = canvas.width / maxDataPoints;

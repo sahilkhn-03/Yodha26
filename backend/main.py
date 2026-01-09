@@ -11,7 +11,11 @@ from models import User, Patient, Assessment
 from routes_auth import router as auth_router
 from routes_patients import router as patients_router
 from routes_assessments import router as assessments_router
-from routes_websocket import router as websocket_router
+# Unified WebSocket manager (consolidates routes_websocket + routes_face_analysis)
+from websocket_manager import router as websocket_router
+
+# Heartbeat simulation service URL
+HEARTBEAT_SIM_URL = "http://localhost:8001"
 
 # Heartbeat simulation service URL
 HEARTBEAT_SIM_URL = "http://localhost:8001"
@@ -20,11 +24,11 @@ HEARTBEAT_SIM_URL = "http://localhost:8001"
 # NOTE: Update DATABASE_URL in .env with your Supabase connection string
 try:
     Base.metadata.create_all(bind=engine)
-    print("✅ Database tables created/verified")
+    print("[OK] Database tables created/verified")
 except Exception as e:
-    print(f"⚠️  Database not connected: {e}")
-    print("📝 Update DATABASE_URL in .env with your Supabase connection string")
-    print("   Get it from: Supabase Dashboard → Settings → Database → Connection String")
+    print(f"[WARNING] Database not connected: {e}")
+    print("[INFO] Update DATABASE_URL in .env with your Supabase connection string")
+    print("       Get it from: Supabase Dashboard -> Settings -> Database -> Connection String")
 
 app = FastAPI(
     title="NeuroBalance AI Backend",
@@ -48,6 +52,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(patients_router, prefix="/patients", tags=["Patients"])
 app.include_router(assessments_router, prefix="/assessments", tags=["Assessments"])
+# Unified WebSocket router handles all WebSocket endpoints under /ws/*
 app.include_router(websocket_router, prefix="/ws", tags=["WebSocket"])
 
 
