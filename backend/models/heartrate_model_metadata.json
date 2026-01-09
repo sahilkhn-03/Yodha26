@@ -1,0 +1,18 @@
+{
+  "model_type": "RandomForestClassifier",
+  "accuracy": 0.8571428571428571,
+  "training_samples": 80,
+  "test_samples": 21,
+  "features": [
+    "bpm",
+    "bpm_squared",
+    "bpm_normalized"
+  ],
+  "classes": [
+    "Normal",
+    "Stress"
+  ],
+  "threshold": 0.5,
+  "trained_at": "2026-01-10T02:07:14.439551",
+  "dataset": "ml_dataset/heartrate_training_data_20260110_015535.csv"
+}

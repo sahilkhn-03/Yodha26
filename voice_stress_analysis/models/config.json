@@ -1,0 +1,23 @@
+{
+  "accuracy": 74.47916666666666,
+  "emotions": {
+    "neutral": 10,
+    "happy": 15,
+    "encouraging": 18,
+    "assertive": 35,
+    "excited": 50,
+    "apologetic": 58,
+    "sad": 68,
+    "concerned": 72
+  },
+  "emotion_map": {
+    "apologetic": 0,
+    "assertive": 1,
+    "concerned": 2,
+    "encouraging": 3,
+    "excited": 4,
+    "happy": 5,
+    "neutral": 6,
+    "sad": 7
+  }
+}

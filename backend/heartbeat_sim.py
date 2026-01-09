@@ -9,6 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 from typing import Optional, List
+import httpx
 import asyncio
 import random
 import time
@@ -31,7 +32,12 @@ class HeartbeatData(BaseModel):
     systolic: int  # Systolic blood pressure (mmHg)
     diastolic: int  # Diastolic blood pressure (mmHg)
     stress_level: float  # Current stress level (0-1, internal)
+    variability: float  # Heart rate variability
     state: str
+    # Optional ML prediction fields (filled by simulator when available)
+    prediction: Optional[str] = None
+    confidence: Optional[float] = None
+    stress_score: Optional[float] = None
     
 
 # ============= In-Memory Storage =============
@@ -54,13 +60,16 @@ class SimulationEngine:
         self.stress_level: float = 0.0
         self.task: Optional[asyncio.Task] = None
         self.websocket_clients: List[WebSocket] = []
-        self.stress_button_active: bool = False
-        self.stress_button_start_time: Optional[float] = None
+        # Internal random spike state (continuous random stress spikes)
+        self.spike_active: bool = False
+        self.spike_start_time: Optional[float] = None
+        self.spike_duration: float = 0.0
         
         # Simulation parameters
         self.min_bpm = 60
         self.max_bpm = 180
         self.stress_threshold = 0.3  # When stress starts affecting HR
+        self.spike_chance_per_tick = 0.03  # ~3% chance per tick to start a spike
         
     def reset(self):
         """Reset to baseline"""
@@ -78,33 +87,44 @@ class SimulationEngine:
         4. Recovery: Slow return to baseline after stress button
         """
         
-        # Check if stress button is active (5 second duration)
-        if self.stress_button_active and self.stress_button_start_time:
-            elapsed = time.time() - self.stress_button_start_time
-            if elapsed < 5.0:
-                # Keep stress high for 5 seconds with fluctuation
-                self.stress_level = random.uniform(0.7, 0.95)
+        # Random spike logic: start a spike randomly, spikes last at least 5s
+        now = time.time()
+        if not self.spike_active:
+            if random.random() < self.spike_chance_per_tick:
+                # Start a spike
+                self.spike_active = True
+                self.spike_start_time = now
+                # Ensure at least 5s duration, allow up to 8s
+                self.spike_duration = random.uniform(5.0, 8.0)
+                # Set spike intensity
+                self.stress_level = random.uniform(0.65, 0.95)
+        else:
+            elapsed = now - (self.spike_start_time or now)
+            if elapsed < self.spike_duration:
+                # Maintain spike (allow small fluctuations)
+                self.stress_level = max(self.stress_level, random.uniform(0.6, 0.98))
             else:
-                # After 5 seconds, deactivate and start decay
-                self.stress_button_active = False
-                self.stress_button_start_time = None
-        # REMOVED: Random stress events - only stress when button is pressed!
-        
-        # Stress decay (return to baseline) - only when button not active
-        if not self.stress_button_active:
-            self.stress_level *= 0.95  # Faster decay to return to normal
+                # End spike and start decay
+                self.spike_active = False
+                self.spike_start_time = None
+                self.spike_duration = 0.0
+
+        # Stress decay (return to baseline) when no spike
+        if not self.spike_active:
+            self.stress_level *= 0.92  # Decay to return to normal
             self.stress_level = max(0.0, self.stress_level)
         
         # Calculate target heart rate based on stress
         if self.stress_level > self.stress_threshold:
-            # Stress increases heart rate
+            # Stress increases heart rate significantly
             stress_factor = (self.stress_level - self.stress_threshold) / (1 - self.stress_threshold)
-            target_bpm = self.base_bpm + (stress_factor * 50)  # Up to +50 bpm under stress
+            target_bpm = self.base_bpm + (stress_factor * 60)  # Up to +60 bpm under stress (72 → 132)
         else:
             target_bpm = self.base_bpm
         
-        # Smooth transition to target (realistic gradual change)
-        self.current_bpm += (target_bpm - self.current_bpm) * 0.1
+        # Faster transition when stressed, slower when calm (more realistic)
+        transition_speed = 0.35 if self.spike_active else 0.08
+        self.current_bpm += (target_bpm - self.current_bpm) * transition_speed
         
         # Add natural variability (breathing, minor fluctuations)
         variability = random.uniform(-2.5, 2.5)
@@ -126,6 +146,9 @@ class SimulationEngine:
         systolic = max(90, min(180, systolic))
         diastolic = max(60, min(110, diastolic))
         
+        # Calculate heart rate variability (HRV) - higher when relaxed, lower when stressed
+        hrv = round(abs(variability) * (1.0 - self.stress_level * 0.5), 3)
+        
         # Create data packet
         data = HeartbeatData(
             timestamp=datetime.utcnow().isoformat(),
@@ -133,6 +156,7 @@ class SimulationEngine:
             systolic=systolic,
             diastolic=diastolic,
             stress_level=round(self.stress_level, 3),
+            variability=hrv,
             state=self.state.value
         )
         
@@ -145,15 +169,30 @@ class SimulationEngine:
         
         Runs at ~2 Hz (every 500ms) for realistic monitoring.
         """
-        while self.state == SimulationState.RUNNING:
-            # Generate new heartbeat data
-            data = self.generate_heartbeat()
-            
-            # Broadcast to all WebSocket clients
-            await self.broadcast_to_websockets(data)
-            
-            # Wait before next update (2 Hz = 500ms)
-            await asyncio.sleep(0.5)
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            while self.state == SimulationState.RUNNING:
+                # Generate new heartbeat data
+                data = self.generate_heartbeat()
+
+                # Call ML prediction endpoint (backend expected at localhost:8000)
+                try:
+                    ml_url = 'http://localhost:8000/api/ml/predict'
+                    resp = await client.post(ml_url, json={"bpm": data.bpm})
+                    if resp.status_code == 200:
+                        j = resp.json()
+                        # Attach ML fields to data
+                        data.prediction = j.get('prediction')
+                        data.confidence = float(j.get('confidence', 0.0))
+                        data.stress_score = float(j.get('stress_score', 0.0))
+                except Exception:
+                    # If ML call fails, leave prediction fields None
+                    pass
+
+                # Broadcast to all WebSocket clients
+                await self.broadcast_to_websockets(data)
+
+                # Wait before next update (2 Hz = 500ms)
+                await asyncio.sleep(0.5)
     
     async def broadcast_to_websockets(self, data: HeartbeatData):
         """Send data to all connected WebSocket clients"""
@@ -245,16 +284,18 @@ async def stress_test():
             status_code=400,
             content={
                 "error": "Simulation not running",
-                "message": "Start simulation first using POST /simulation/start"
+                "message": "Simulation not running"
             }
         )
-    
-    # Activate stress button timer
-    engine.stress_button_active = True
-    engine.stress_button_start_time = time.time()
-    
+
+    # Trigger a deterministic 5-second spike
+    engine.spike_active = True
+    engine.spike_start_time = time.time()
+    engine.spike_duration = 5.0
+    engine.stress_level = max(engine.stress_level, 0.75)
+
     return {
-        "message": "Stress test initiated",
+        "message": "Stress test initiated (5s spike)",
         "duration_seconds": 5,
         "state": engine.state.value
     }
@@ -672,6 +713,10 @@ async def live_monitor():
                     <div class="metric-label">Heart Rate (BPM)</div>
                 </div>
                 <div class="metric">
+                    <div class="metric-value" id="mlPrediction">--</div>
+                    <div class="metric-label">ML Prediction (Stress)</div>
+                </div>
+                <div class="metric">
                     <div class="bp-display">
                         <span class="bp-value" id="systolic">--</span>
                         <span class="bp-separator">/</span>
@@ -679,21 +724,10 @@ async def live_monitor():
                     </div>
                     <div class="metric-label">Blood Pressure (mmHg)</div>
                 </div>
-                <div class="metric">
-                    <div class="metric-value" id="updates">0</div>
-                    <div class="metric-label">Data Points Received</div>
-                </div>
             </div>
             
-            <!-- Controls -->
-            <div class="controls">
-                <button class="btn-start" onclick="startSimulation()">▶ START MONITOR</button>
-                <button class="btn-stress" onclick="triggerStress()" id="stressBtn">⚡ STRESS TEST (5s)</button>
-                <button class="btn-stop" onclick="stopSimulation()">⏹ STOP</button>
-            </div>
-            
-            <div id="status" class="status status-stopped">
-                ⚫ SYSTEM OFFLINE - Click Start to Begin Monitoring
+            <div id="status" class="status status-running">
+                🟢 LIVE MONITORING ACTIVE (auto)
             </div>
             
             <div class="data-log" id="dataLog">
@@ -835,58 +869,7 @@ async def live_monitor():
             animationId = requestAnimationFrame(drawEKG);
         }
 
-        async function startSimulation() {
-            try {
-                updateStatus('connecting', '🔄 Initializing monitor...');
-                const res = await fetch(`${API_BASE}/simulation/start`, { method: 'POST' });
-                const data = await res.json();
-                updateStatus('running', '🟢 LIVE MONITORING ACTIVE');
-                addLog(`✅ ${data.message}`);
-                connectWebSocket();
-                drawEKG();
-            } catch (error) {
-                updateStatus('stopped', '⚫ ERROR: Connection failed');
-                addLog(`❌ Error: ${error.message}`);
-            }
-        }
-
-        async function stopSimulation() {
-            try {
-                await fetch(`${API_BASE}/simulation/stop`, { method: 'POST' });
-                updateStatus('stopped', '⚫ SYSTEM OFFLINE');
-                addLog('⏹ Monitor stopped');
-                if (ws) ws.close();
-                if (animationId) cancelAnimationFrame(animationId);
-                updateCount = 0;
-                document.getElementById('updates').textContent = '0';
-                ekgData = [];
-            } catch (error) {
-                addLog(`❌ Error: ${error.message}`);
-            }
-        }
-
-        async function triggerStress() {
-            const btn = document.getElementById('stressBtn');
-            btn.disabled = true;
-            btn.textContent = '⚡ STRESS ACTIVE...';
-            
-            try {
-                const response = await fetch(`${API_BASE}/simulation/stress-test`, { method: 'POST' });
-                const data = await response.json();
-                addLog('⚡ Stress test initiated (5 seconds)');
-                
-                // Re-enable button after 5 seconds
-                setTimeout(() => {
-                    btn.disabled = false;
-                    btn.textContent = '⚡ STRESS TEST (5s)';
-                    addLog('✅ Stress test complete');
-                }, 5000);
-            } catch (error) {
-                addLog(`❌ Error: ${error.message}`);
-                btn.disabled = false;
-                btn.textContent = '⚡ STRESS TEST (5s)';
-            }
-        }
+        // Controls removed — simulation runs continuously on server.
 
         function connectWebSocket() {
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -910,7 +893,6 @@ async def live_monitor():
                 document.getElementById('heartRate').textContent = data.bpm;
                 document.getElementById('systolic').textContent = data.systolic;
                 document.getElementById('diastolic').textContent = data.diastolic;
-                document.getElementById('updates').textContent = updateCount;
                 
                 // Update EKG waveform
                 const ekgPoint = generateEKGPoint(data.bpm, updateCount);
@@ -919,6 +901,11 @@ async def live_monitor():
                     ekgData.shift();
                 }
                 
+                // Update ML prediction display if available
+                const predLabel = data.prediction || '--';
+                const predScore = (data.stress_score !== undefined && data.stress_score !== null) ? (data.stress_score).toFixed(3) : '--';
+                document.getElementById('mlPrediction').textContent = `${predLabel} (${predScore})`;
+
                 // Log high stress events
                 if (data.stress_level > 0.5) {
                     addLog(`🔴 ELEVATED: HR=${data.bpm} BP=${data.systolic}/${data.diastolic}`);
@@ -954,25 +941,35 @@ async def live_monitor():
             }
         }
 
-        // Auto-connect if already running
+        // Auto-connect on load (simulation runs on server automatically)
         window.onload = async () => {
             try {
-                const res = await fetch(`${API_BASE}/health`);
-                const data = await res.json();
-                if (data.simulation_state === 'running') {
-                    updateStatus('running', '🟢 LIVE MONITORING ACTIVE');
-                    addLog('📊 Reconnecting to existing session...');
-                    connectWebSocket();
-                    drawEKG();
-                }
+                updateStatus('running', '🟢 LIVE MONITORING ACTIVE');
+                addLog('📊 Connecting to live session...');
+                connectWebSocket();
+                drawEKG();
             } catch (error) {
-                console.log('Health check failed:', error);
+                console.log('Startup connection failed:', error);
             }
         };
     </script>
 </body>
 </html>
     """
+    return HTMLResponse(content=html_content)
+
+
+@app.get("/data-collection")
+async def data_collection_interface():
+    """
+    Data collection interface with auto-labeling for ML training.
+    
+    Opens at: http://localhost:8001/data-collection
+    
+    Allows you to collect labeled heart rate data for training ML models.
+    """
+    with open("heartbeat_monitor.html", "r", encoding="utf-8") as f:
+        html_content = f.read()
     return HTMLResponse(content=html_content)
 
 
@@ -1192,14 +1189,18 @@ async def set_baseline_bpm(baseline_bpm: int = 72):
 async def startup_event():
     """Initialize simulation on startup"""
     print("="*60)
-    print("🫀 Virtual Heartbeat Simulation API")
+    print("🫀 Virtual Heartbeat Simulation API (auto-starting simulation)")
     print("="*60)
     print("Ready to simulate realistic heartbeat data!")
-    print("\nQuick Start:")
-    print("  1. Start simulation: POST http://localhost:8000/simulation/start")
-    print("  2. Get current data: GET http://localhost:8000/heartbeat/current")
-    print("  3. WebSocket stream: ws://localhost:8000/ws/heartbeat")
-    print("  4. API docs: http://localhost:8000/docs")
+    # Auto-start continuous simulation on startup
+    if engine.state != SimulationState.RUNNING:
+        engine.reset()
+        engine.state = SimulationState.RUNNING
+        engine.task = asyncio.create_task(engine.simulation_loop())
+        print("✅ Simulation auto-started")
+    print("\nQuick Info:")
+    print("  - WebSocket stream: ws://localhost:8001/ws/heartbeat")
+    print("  - HTTP current:  GET http://localhost:8001/heartbeat/current")
     print("="*60 + "\n")
 
 

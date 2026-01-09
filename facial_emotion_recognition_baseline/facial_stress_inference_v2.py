@@ -724,6 +724,15 @@ def run_webcam_demo():
     print("\n✅ Webcam opened successfully")
     print("Press 'q' to quit, 'l' to toggle landmarks, 'c' to toggle connections\n")
     
+    # Create window with specific properties to ensure visibility
+    window_name = 'Facial Stress Detection with Landmarks'
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(window_name, 960, 720)
+    cv2.moveWindow(window_name, 100, 100)
+    
+    print(f"📺 Window created: '{window_name}'")
+    print("🎥 Starting video capture loop...\n")
+    
     frame_count = 0
     fps_start_time = time.time()
     
@@ -731,7 +740,12 @@ def run_webcam_demo():
         while True:
             ret, frame = cap.read()
             if not ret:
+                print("❌ Failed to read frame from webcam")
                 break
+            
+            # Debug output for first few frames
+            if frame_count < 3:
+                print(f"✓ Frame {frame_count + 1} captured: {frame.shape}")
             
             # Process frame with visualization
             result, processed_frame = engine.process_frame_with_visualization(frame)
@@ -778,7 +792,9 @@ def run_webcam_demo():
                            (processed_frame.shape[1] - 100, 30), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             
+            # Show frame and bring window to front
             cv2.imshow('Facial Stress Detection with Landmarks', processed_frame)
+            cv2.setWindowProperty('Facial Stress Detection with Landmarks', cv2.WND_PROP_TOPMOST, 1)
             
             # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF

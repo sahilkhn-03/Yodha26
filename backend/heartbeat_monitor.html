@@ -90,6 +90,109 @@
             gap: 10px;
             margin-top: 20px;
         }
+        
+        /* DATA LABELING SECTION */
+        .labeling-section {
+            background: #f0f9ff;
+            border: 2px solid #667eea;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 30px;
+        }
+        .labeling-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .stress-input {
+            margin: 15px 0;
+        }
+        .stress-input label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        input[type="range"] {
+            flex: 1;
+            height: 8px;
+            border-radius: 5px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .stress-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            min-width: 70px;
+            text-align: center;
+        }
+        .btn-record {
+            background: #00c851;
+            color: white;
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.3s;
+        }
+        .btn-record:hover {
+            background: #00a844;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,200,81,0.3);
+        }
+        .dataset-stats {
+            background: #fff;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            border: 1px solid #e0e0e0;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-weight: 500;
+            text-align: center;
+        }
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
         button {
             flex: 1;
             padding: 15px;
@@ -164,11 +267,47 @@
         <div id="status" class="status status-stopped">
             ⚫ Simulation Stopped
         </div>
+        
+        <!-- AUTO DATA COLLECTION SECTION -->
+        <div class="labeling-section">
+            <div class="labeling-title">🤖 Auto Dataset Collection</div>
+            
+            <div style="text-align: center; margin: 20px 0;">
+                <label style="display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="autoCollect" onchange="toggleAutoCollect()" style="width: 20px; height: 20px;">
+                    <span style="font-size: 18px; font-weight: bold;">Enable Auto-Collection</span>
+                </label>
+                <p style="margin-top: 10px; color: #666; font-size: 14px;">
+                    Automatically saves data every 2 seconds while monitoring
+                </p>
+            </div>
+            
+            <div id="recordMessage"></div>
+            
+            <div class="dataset-stats">
+                <div style="font-weight: bold; margin-bottom: 10px; text-align: center;">Dataset Stats</div>
+                <div class="stat-row">
+                    <span>Total Samples:</span>
+                    <span id="totalSamples">0</span>
+                </div>
+                <div class="stat-row">
+                    <span>Normal (≤0.5):</span>
+                    <span id="normalCount">0</span>
+                </div>
+                <div class="stat-row">
+                    <span>Abnormal (>0.5):</span>
+                    <span id="abnormalCount">0</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
         let ws = null;
         const API_BASE = 'http://localhost:8001';
+        let currentBPM = 0;
+        let currentVariability = 0;
+        let currentStress = 0;
 
         async function startSimulation() {
             try {
@@ -193,7 +332,7 @@
 
         async function triggerStress() {
             try {
-                await fetch(`${API_BASE}/simulation/trigger-stress?stress_level=0.8`, { method: 'POST' });
+                await fetch(`${API_BASE}/simulation/stress-test`, { method: 'POST' });
             } catch (error) {
                 console.error('Error triggering stress');
             }
@@ -206,9 +345,13 @@
                 const data = JSON.parse(event.data);
                 if (data.type === 'connected') return;
                 
-                document.getElementById('bpm').textContent = data.bpm;
-                document.getElementById('variability').textContent = data.variability.toFixed(3);
-                document.getElementById('stress').textContent = data.stress_level.toFixed(3);
+                currentBPM = data.bpm;
+                currentVariability = data.variability;
+                currentStress = data.stress_level;
+                
+                document.getElementById('bpm').textContent = currentBPM;
+                document.getElementById('variability').textContent = currentVariability.toFixed(3);
+                document.getElementById('stress').textContent = currentStress.toFixed(3);
                 
                 // Color code stress level
                 const stressEl = document.getElementById('stress');
@@ -235,6 +378,85 @@
             statusEl.textContent = text;
             statusEl.className = `status status-${state}`;
         }
+        
+        // DATA LABELING FUNCTIONS
+        let autoCollectInterval = null;
+        let autoCollectEnabled = false;
+        
+        function toggleAutoCollect() {
+            autoCollectEnabled = document.getElementById('autoCollect').checked;
+            
+            if (autoCollectEnabled) {
+                if (currentBPM === 0) {
+                    showMessage('Start simulation first!', 'error');
+                    document.getElementById('autoCollect').checked = false;
+                    autoCollectEnabled = false;
+                    return;
+                }
+                
+                showMessage('✅ Auto-collection ENABLED', 'success');
+                autoCollectInterval = setInterval(autoRecordSample, 2000);
+            } else {
+                showMessage('⏸️ Auto-collection PAUSED', 'error');
+                if (autoCollectInterval) {
+                    clearInterval(autoCollectInterval);
+                    autoCollectInterval = null;
+                }
+            }
+        }
+        
+        async function autoRecordSample() {
+            if (currentBPM === 0 || !autoCollectEnabled) return;
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/training/record', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bpm: currentBPM,
+                        stress_level: currentStress,
+                        systolic: null,
+                        diastolic: null,
+                        session_id: null,
+                        notes: `Auto-collected, Var: ${currentVariability.toFixed(3)}`
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    updateStats();
+                }
+            } catch (error) {
+                console.error('Auto-record failed:', error);
+            }
+        }
+        
+        async function updateStats() {
+            try {
+                const response = await fetch('http://localhost:8000/api/training/stats');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('totalSamples').textContent = data.total_samples;
+                    document.getElementById('normalCount').textContent = data.normal_samples;
+                    document.getElementById('abnormalCount').textContent = data.stress_samples;
+                }
+            } catch (error) {
+                console.error('Failed to update stats:', error);
+            }
+        }
+        
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('recordMessage');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = text;
+            setTimeout(() => messageDiv.textContent = '', 3000);
+        }
+        
+        // Update stats on load and periodically
+        updateStats();
+        setInterval(updateStats, 5000);
     </script>
 </body>
 </html>
