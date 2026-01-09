@@ -11,11 +11,7 @@ ai/fer2013_data/
 *.zip
 *.tar.gz
 
-# Temporary model files (keep trained models in ai/models/)
-ai/*.pkl
 
-# Keep trained models
-!ai/models/*.pkl
 
 # Voice stress dataset (too large for git)
 voice_stress_analysis/dataset/
