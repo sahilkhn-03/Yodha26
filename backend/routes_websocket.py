@@ -13,12 +13,7 @@ import asyncio
 import random
 import json
 from datetime import datetime
-<<<<<<< HEAD
 import httpx
-=======
-<<<<<<< HEAD
-import httpx
-=======
 import base64
 
 # Try importing OpenCV + NumPy for image decode; optional
@@ -45,8 +40,6 @@ except Exception:
         from utils.face_analysis import analyze_face  # type: ignore
     except Exception:
         analyze_face = None  # type: ignore
->>>>>>> d996b41 (Include local frontend + backend changes (mesh overlay + baseline wiring))
->>>>>>> 94f2d3e (simulation)
 
 router = APIRouter()
 
