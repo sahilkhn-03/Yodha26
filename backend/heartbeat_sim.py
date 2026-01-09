@@ -31,6 +31,7 @@ class HeartbeatData(BaseModel):
     systolic: int  # Systolic blood pressure (mmHg)
     diastolic: int  # Diastolic blood pressure (mmHg)
     stress_level: float  # Current stress level (0-1, internal)
+    variability: float  # Heart rate variability
     state: str
     
 
@@ -83,7 +84,7 @@ class SimulationEngine:
             elapsed = time.time() - self.stress_button_start_time
             if elapsed < 5.0:
                 # Keep stress high for 5 seconds with fluctuation
-                self.stress_level = random.uniform(0.7, 0.95)
+                self.stress_level = random.uniform(0.75, 0.95)
             else:
                 # After 5 seconds, deactivate and start decay
                 self.stress_button_active = False
@@ -92,19 +93,20 @@ class SimulationEngine:
         
         # Stress decay (return to baseline) - only when button not active
         if not self.stress_button_active:
-            self.stress_level *= 0.95  # Faster decay to return to normal
+            self.stress_level *= 0.92  # Decay to return to normal
             self.stress_level = max(0.0, self.stress_level)
         
         # Calculate target heart rate based on stress
         if self.stress_level > self.stress_threshold:
-            # Stress increases heart rate
+            # Stress increases heart rate significantly
             stress_factor = (self.stress_level - self.stress_threshold) / (1 - self.stress_threshold)
-            target_bpm = self.base_bpm + (stress_factor * 50)  # Up to +50 bpm under stress
+            target_bpm = self.base_bpm + (stress_factor * 60)  # Up to +60 bpm under stress (72 → 132)
         else:
             target_bpm = self.base_bpm
         
-        # Smooth transition to target (realistic gradual change)
-        self.current_bpm += (target_bpm - self.current_bpm) * 0.1
+        # Faster transition when stressed, slower when calm (more realistic)
+        transition_speed = 0.3 if self.stress_button_active else 0.08
+        self.current_bpm += (target_bpm - self.current_bpm) * transition_speed
         
         # Add natural variability (breathing, minor fluctuations)
         variability = random.uniform(-2.5, 2.5)
@@ -126,6 +128,9 @@ class SimulationEngine:
         systolic = max(90, min(180, systolic))
         diastolic = max(60, min(110, diastolic))
         
+        # Calculate heart rate variability (HRV) - higher when relaxed, lower when stressed
+        hrv = round(abs(variability) * (1.0 - self.stress_level * 0.5), 3)
+        
         # Create data packet
         data = HeartbeatData(
             timestamp=datetime.utcnow().isoformat(),
@@ -133,6 +138,7 @@ class SimulationEngine:
             systolic=systolic,
             diastolic=diastolic,
             stress_level=round(self.stress_level, 3),
+            variability=hrv,
             state=self.state.value
         )
         
@@ -973,6 +979,20 @@ async def live_monitor():
 </body>
 </html>
     """
+    return HTMLResponse(content=html_content)
+
+
+@app.get("/data-collection")
+async def data_collection_interface():
+    """
+    Data collection interface with auto-labeling for ML training.
+    
+    Opens at: http://localhost:8001/data-collection
+    
+    Allows you to collect labeled heart rate data for training ML models.
+    """
+    with open("heartbeat_monitor.html", "r", encoding="utf-8") as f:
+        html_content = f.read()
     return HTMLResponse(content=html_content)
 
 

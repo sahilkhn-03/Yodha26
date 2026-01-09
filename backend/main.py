@@ -11,6 +11,9 @@ from models import User, Patient, Assessment
 from routes_auth import router as auth_router
 from routes_patients import router as patients_router
 from routes_assessments import router as assessments_router
+from routes_training_data import router as training_router
+from routes_ml_heartrate import router as ml_router
+from routes_ecg_integration import router as ecg_router
 # Unified WebSocket manager (consolidates routes_websocket + routes_face_analysis)
 from websocket_manager import router as websocket_router
 
@@ -52,6 +55,9 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(patients_router, prefix="/patients", tags=["Patients"])
 app.include_router(assessments_router, prefix="/assessments", tags=["Assessments"])
+app.include_router(training_router, tags=["Training Data"])
+app.include_router(ml_router, tags=["ML Predictions"])
+app.include_router(ecg_router, tags=["ECG Integration"])
 # Unified WebSocket router handles all WebSocket endpoints under /ws/*
 app.include_router(websocket_router, prefix="/ws", tags=["WebSocket"])
 

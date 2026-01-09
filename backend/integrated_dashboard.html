@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ECG + ML Integration Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .result-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .metric:last-child { border-bottom: none; }
+        .metric-label { font-weight: 600; color: #666; }
+        .metric-value { font-weight: bold; color: #667eea; }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover { background: #5568d3; }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: 600;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .prediction-stress { color: #dc2626; font-size: 24px; font-weight: bold; }
+        .prediction-normal { color: #10b981; font-size: 24px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🫀 ECG + ML Integration Dashboard</h1>
+        
+        <button onclick="checkStatus()">Check System Status</button>
+        <button onclick="getPrediction()">Get Stress Prediction from ECG</button>
+        <button onclick="monitorStress()">Monitor Continuous Readings</button>
+        
+        <div id="status"></div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8000';
+
+        async function checkStatus() {
+            const statusDiv = document.getElementById('status');
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/ecg/status`);
+                const data = await response.json();
+                
+                let html = '<div class="result-box">';
+                html += '<h3>System Status</h3>';
+                html += `<div class="metric"><span class="metric-label">ECG Simulator:</span><span class="metric-value">${data.ecg_simulator.status}</span></div>`;
+                html += `<div class="metric"><span class="metric-label">ML Model:</span><span class="metric-value">${data.ml_model.status}</span></div>`;
+                html += `<div class="metric"><span class="metric-label">Overall:</span><span class="metric-value">${data.overall}</span></div>`;
+                html += '</div>';
+                
+                resultDiv.innerHTML = html;
+                
+                if (data.overall === 'fully_operational') {
+                    statusDiv.innerHTML = '<div class="status success">✅ All systems operational!</div>';
+                } else {
+                    statusDiv.innerHTML = '<div class="status error">⚠️ Some systems offline. Start servers first.</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="status error">❌ Backend not responding. Start servers!</div>';
+            }
+        }
+
+        async function getPrediction() {
+            const statusDiv = document.getElementById('status');
+            const resultDiv = document.getElementById('result');
+            
+            statusDiv.innerHTML = '<div class="status">⏳ Getting prediction...</div>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/ecg/predict-stress`);
+                const data = await response.json();
+                
+                const predClass = data.prediction === 'Stress' ? 'prediction-stress' : 'prediction-normal';
+                
+                let html = '<div class="result-box">';
+                html += '<h3>Current Prediction</h3>';
+                html += `<div class="metric"><span class="metric-label">Heart Rate:</span><span class="metric-value">${data.bpm} BPM</span></div>`;
+                html += `<div class="metric"><span class="metric-label">Prediction:</span><span class="${predClass}">${data.prediction}</span></div>`;
+                html += `<div class="metric"><span class="metric-label">Confidence:</span><span class="metric-value">${(data.confidence * 100).toFixed(1)}%</span></div>`;
+                html += `<div class="metric"><span class="metric-label">Stress Score:</span><span class="metric-value">${(data.stress_score * 100).toFixed(1)}%</span></div>`;
+                html += '<h4 style="margin-top: 15px;">Probabilities:</h4>';
+                html += `<div class="metric"><span class="metric-label">Normal:</span><span class="metric-value">${(data.probabilities.Normal * 100).toFixed(1)}%</span></div>`;
+                html += `<div class="metric"><span class="metric-label">Stress:</span><span class="metric-value">${(data.probabilities.Stress * 100).toFixed(1)}%</span></div>`;
+                html += '</div>';
+                
+                resultDiv.innerHTML = html;
+                statusDiv.innerHTML = '<div class="status success">✅ Prediction complete!</div>';
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="status error">❌ Error: ' + error.message + '</div>';
+                resultDiv.innerHTML = '<div class="result-box">Make sure ECG simulator is running on port 8001!</div>';
+            }
+        }
+
+        async function monitorStress() {
+            const statusDiv = document.getElementById('status');
+            const resultDiv = document.getElementById('result');
+            
+            statusDiv.innerHTML = '<div class="status">⏳ Monitoring 5 readings...</div>';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/api/ecg/monitor-stress`);
+                const data = await response.json();
+                
+                let html = '<div class="result-box">';
+                html += '<h3>Continuous Monitoring</h3>';
+                
+                data.readings.forEach(r => {
+                    const predClass = r.prediction === 'Stress' ? 'prediction-stress' : 'prediction-normal';
+                    html += `<div class="metric">`;
+                    html += `<span class="metric-label">Reading ${r.reading_number}: ${r.bpm} BPM</span>`;
+                    html += `<span class="${predClass}">${r.prediction}</span>`;
+                    html += `</div>`;
+                });
+                
+                html += '<h4 style="margin-top: 20px;">Analysis:</h4>';
+                html += `<div class="metric"><span class="metric-label">Total Readings:</span><span class="metric-value">${data.analysis.total_readings}</span></div>`;
+                html += `<div class="metric"><span class="metric-label">Stress Count:</span><span class="metric-value">${data.analysis.stress_readings}</span></div>`;
+                html += `<div class="metric"><span class="metric-label">Avg Stress Score:</span><span class="metric-value">${(data.analysis.average_stress_score * 100).toFixed(1)}%</span></div>`;
+                html += `<div class="metric"><span class="metric-label">Trend:</span><span class="metric-value">${data.analysis.trend}</span></div>`;
+                html += `<div class="metric"><span class="metric-label">Status:</span><span class="metric-value">${data.analysis.overall_status}</span></div>`;
+                html += `<div class="metric"><span class="metric-label">Recommendation:</span><span class="metric-value">${data.recommendation}</span></div>`;
+                html += '</div>';
+                
+                resultDiv.innerHTML = html;
+                statusDiv.innerHTML = '<div class="status success">✅ Monitoring complete!</div>';
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="status error">❌ Error: ' + error.message + '</div>';
+            }
+        }
+
+        // Auto-check status on load
+        window.onload = () => checkStatus();
+    </script>
+</body>
+</html>

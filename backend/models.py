@@ -88,10 +88,35 @@ class Assessment(Base):
     patient = relationship("Patient", back_populates="assessments")
 
 
+class HeartRateTrainingData(Base):
+    """
+    Training data for heart rate classification model.
+    Collects labeled heart rate samples for normal vs stress classification.
+    """
+    __tablename__ = "heartrate_training_data"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Heart rate metrics
+    bpm = Column(Integer, nullable=False)  # Beats per minute
+    systolic = Column(Integer)  # Systolic blood pressure (optional)
+    diastolic = Column(Integer)  # Diastolic blood pressure (optional)
+    
+    # Label (target variable for ML)
+    stress_level = Column(Float, nullable=False)  # 0.0 (normal) to 1.0 (stressed)
+    
+    # Optional metadata for better features
+    patient_id = Column(String, nullable=True)  # Optional patient linkage
+    session_id = Column(String, nullable=True)  # Group readings from same session
+    notes = Column(Text, nullable=True)  # Clinician notes
+
+
 # Why these models?
 # 1. User: Manage clinician logins and access control
 # 2. Patient: Track patients with anonymous IDs (privacy-first)
 # 3. Assessment: Store ONLY final analysis results, never raw biometric data
+# 4. HeartRateTrainingData: Collect labeled samples for ML model training
 # 
 # What we DON'T store (privacy protection):
 # - Raw video frames
