@@ -16,16 +16,10 @@ interface CameraDisplayProps {
 export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate }: CameraDisplayProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-<<<<<<< HEAD
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const sendIntervalRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-=======
-  const wsRef = useRef<WebSocket | null>(null);
-  const sendIntervalRef = useRef<number | null>(null);
->>>>>>> 94f2d3ea339fd48608dc024b1df32f82b33374b2
-  const [overlaySrc, setOverlaySrc] = React.useState<string | null>(null);
   const prevMetricsRef = useRef<{
     eye_openness: number;
     brow_tension: number;
@@ -61,7 +55,6 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
-<<<<<<< HEAD
         running = true;
         
         // Draw loop: show raw video until backend sends annotated frames
@@ -91,45 +84,28 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
           console.log('✅ Connected to facial stress analysis');
           console.log('🎥 Starting frame capture...');
           startFrameCapture();
-=======
-        // Setup WebSocket
-        const ws = new WebSocket('ws://localhost:8000/ws/face-analysis');
-        ws.onopen = () => {
-          // Start sending frames at ~10 FPS
-          running = true;
-          startFrameLoop();
->>>>>>> 94f2d3ea339fd48608dc024b1df32f82b33374b2
         };
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-<<<<<<< HEAD
             if (data.error) {
               console.error('Face analysis error:', data.error);
               return;
             }
             
             // Apply light smoothing (EMA)
-=======
-            // Backend returns metrics; apply light smoothing (EMA)
->>>>>>> 94f2d3ea339fd48608dc024b1df32f82b33374b2
             const alpha = 0.3;
             const prev = prevMetricsRef.current;
             const smoothed = {
               eye_openness: prev ? alpha * data.eye_openness + (1 - alpha) * prev.eye_openness : data.eye_openness,
               brow_tension: prev ? alpha * data.brow_tension + (1 - alpha) * prev.brow_tension : data.brow_tension,
               jaw_tension: prev ? alpha * data.jaw_tension + (1 - alpha) * prev.jaw_tension : data.jaw_tension,
-<<<<<<< HEAD
               facial_asymmetry: prev ? alpha * data.facial_asymmetry + (1 - alpha) * prev.facial_asymmetry : data.facial_asymmetry,
-=======
-              facial_asymmetry: prev ? alpha * (data.facial_stress_score * 0.1) + (1 - alpha) * prev.facial_asymmetry : data.facial_stress_score * 0.1,
->>>>>>> 94f2d3ea339fd48608dc024b1df32f82b33374b2
               head_motion: prev ? alpha * data.head_motion + (1 - alpha) * prev.head_motion : data.head_motion,
               facial_stress_score: prev ? alpha * data.facial_stress_score + (1 - alpha) * prev.facial_stress_score : data.facial_stress_score,
             };
             prevMetricsRef.current = smoothed;
             onMetricsUpdate?.(smoothed);
-<<<<<<< HEAD
             
             // Update annotated frame with mesh overlay
             if (data.frame_overlay) {
@@ -145,17 +121,6 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         };
         ws.onerror = () => {
           console.error('WebSocket connection error');
-=======
-            if (data.frame_overlay && typeof data.frame_overlay === 'string') {
-              setOverlaySrc(data.frame_overlay);
-            }
-          } catch (e) {
-            // Ignore malformed messages
-          }
-        };
-        ws.onerror = () => {
-          // Fail softly; don't block UI
->>>>>>> 94f2d3ea339fd48608dc024b1df32f82b33374b2
         };
         wsRef.current = ws;
       } catch (err) {
@@ -163,7 +128,6 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
       }
     }
 
-<<<<<<< HEAD
     function startFrameCapture() {
       // Send frames to backend for facial analysis
       console.log('📸 startFrameCapture called');
@@ -210,42 +174,14 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
           console.error('Error sending frame:', e);
         }
       }, 200); // Reduced frequency to 200ms (~5 FPS) for smoother performance
-=======
-    function startFrameLoop() {
-      if (!videoRef.current) return;
-      const canvas = canvasRef.current || document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth || 640;
-      canvas.height = videoRef.current.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-      canvasRef.current = canvas;
-      // Send every ~100ms
-      sendIntervalRef.current = window.setInterval(() => {
-        if (!running || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-        if (!videoRef.current || !ctx) return;
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        const payload = {
-          frame: dataUrl,
-          timestamp: Date.now(),
-        };
-        try {
-          wsRef.current.send(JSON.stringify(payload));
-        } catch (e) {
-          // Ignore send errors
-        }
-      }, 100);
->>>>>>> 94f2d3ea339fd48608dc024b1df32f82b33374b2
     }
 
     function stopCamera() {
       running = false;
-<<<<<<< HEAD
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
-=======
->>>>>>> 94f2d3ea339fd48608dc024b1df32f82b33374b2
       if (sendIntervalRef.current !== null) {
         clearInterval(sendIntervalRef.current);
         sendIntervalRef.current = null;
@@ -253,7 +189,6 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         try { wsRef.current.close(); } catch {}
       }
-      setOverlaySrc(null);
       if (stream) {
         stream.getTracks().forEach((t) => t.stop());
         stream = null;
@@ -268,7 +203,7 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
       stopCamera();
     };
     // Only respond to isCameraEnabled changes
-  }, [isCameraEnabled]);  // Removed onMetricsUpdate from dependencies
+  }, [isCameraEnabled]);
 
   return (
     <section className="relative rounded-2xl border border-gray-300 bg-gray-200 overflow-hidden">
@@ -299,20 +234,12 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         )}
         {isCameraEnabled && (
           <>
-<<<<<<< HEAD
             <video ref={videoRef} className="hidden" muted playsInline />
             <canvas 
               ref={overlayCanvasRef} 
               className="absolute inset-0 w-full h-full object-cover"
             />
             {/* Hidden canvas for frame capture */}
-=======
-            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" muted playsInline />
-            {overlaySrc && (
-              <img src={overlaySrc} alt="mesh overlay" className="absolute inset-0 w-full h-full object-cover" />
-            )}
-            {/* Offscreen canvas used for frame capture */}
->>>>>>> 94f2d3ea339fd48608dc024b1df32f82b33374b2
             <canvas ref={canvasRef} className="hidden" />
           </>
         )}
