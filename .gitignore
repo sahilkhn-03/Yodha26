@@ -16,3 +16,6 @@ ai/*.pkl
 
 # Keep trained models
 !ai/models/*.pkl
+
+# Voice stress dataset (too large for git)
+voice_stress_analysis/dataset/
