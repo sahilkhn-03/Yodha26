@@ -17,6 +17,9 @@ from routes_face_analysis import router as face_analysis_router
 # Heartbeat simulation service URL
 HEARTBEAT_SIM_URL = "http://localhost:8001"
 
+# Heartbeat simulation service URL
+HEARTBEAT_SIM_URL = "http://localhost:8001"
+
 # Create database tables (only if database is configured)
 # NOTE: Update DATABASE_URL in .env with your Supabase connection string
 try:
@@ -94,7 +97,11 @@ async def get_current_heartbeat():
     - Check if heart rate is normal or elevated
     - Continuous monitoring without WebSocket
     
+<<<<<<< HEAD
     WARNING: Returns ALL data (normal + elevated), not filtered!
+=======
+    ⚠️ Returns ALL data (normal + elevated), not filtered!
+>>>>>>> 94f2d3ea339fd48608dc024b1df32f82b33374b2
     """
     try:
         async with httpx.AsyncClient() as client:
