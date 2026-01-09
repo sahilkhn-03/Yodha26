@@ -30,7 +30,7 @@ export function MetricCard({ title, value, icon: Icon, helperText }: MetricCardP
     return () => clearInterval(interval);
   }, [value]);
 
-  const percentage = Math.round(displayValue * 100);
+  const percentage = Math.min(100, Math.max(0, Math.round(displayValue)));
 
   return (
     <div className="bg-white rounded-lg p-5 border-2 border-gray-200 hover:border-gray-300 transition-colors">

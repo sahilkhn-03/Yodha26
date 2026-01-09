@@ -121,9 +121,13 @@ async def websocket_face_analysis(websocket: WebSocket):
             face_detected = results.get('face_detected', False)
             print(f"[DEBUG] Frame {frame_count}: Face detected = {face_detected}, Stress = {results.get('facial_stress', 0.0)}")
             
-            # Only send if face detected
+            # Send "no face" message if not detected
             if not face_detected:
-                print(f"[INFO] Frame {frame_count}: No face detected, skipping...")
+                print(f"[INFO] Frame {frame_count}: No face detected, sending no-face message...")
+                await websocket.send_json({
+                    "face_detected": False,
+                    "message": "No face detected"
+                })
                 continue
             
             # Encode annotated frame with mesh back to base64
@@ -133,6 +137,7 @@ async def websocket_face_analysis(websocket: WebSocket):
             
             # Extract metrics from results
             metrics = {
+                "face_detected": True,
                 "eye_openness": float(results.get("eye_closure", 0.0)),
                 "brow_tension": float(results.get("eyebrow_tension", 0.0)),
                 "jaw_tension": float(results.get("jaw_tension", 0.0)),

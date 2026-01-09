@@ -47,22 +47,28 @@ class StressPredictor:
         print(f"  Model: {model_path}")
         print(f"  Scaler: {scaler_path}")
     
-    def predict_from_image(self, image_path):
+    def predict_from_image(self, image_path, return_landmarks=False):
         """
         Predict stress level from an image file
         
         Args:
             image_path: Path to image file (str or Path)
+            return_landmarks: If True, also return face mesh landmarks
         
         Returns:
             dict with:
                 - stress_score: float (0-100)
                 - stress_level: str (Low/Moderate/High/Extreme)
                 - features: dict of extracted features
+                - landmarks: list of {x, y, z} (if return_landmarks=True)
                 - success: bool
         """
-        # Extract features
-        features = self.extractor.extract_features(image_path)
+        # Extract features and optionally get landmarks
+        if return_landmarks:
+            features, landmarks = self.extractor.extract_features_with_landmarks(image_path)
+        else:
+            features = self.extractor.extract_features(image_path)
+            landmarks = None
         
         if features is None:
             return {
@@ -72,24 +78,28 @@ class StressPredictor:
                 'error': 'No face detected in image'
             }
         
-        return self.predict_from_features(features)
+        result = self.predict_from_features(features)
+        if return_landmarks and landmarks is not None:
+            result['landmarks'] = landmarks
+        return result
     
-    def predict_from_frame(self, frame):
+    def predict_from_frame(self, frame, return_landmarks=False):
         """
         Predict stress level from a video frame (numpy array)
         
         Args:
             frame: BGR image (numpy array)
+            return_landmarks: If True, also return face mesh landmarks
         
         Returns:
-            dict with stress prediction results
+            dict with stress prediction results (and landmarks if requested)
         """
         # Save frame temporarily
         temp_path = Path("temp_frame.jpg")
         cv2.imwrite(str(temp_path), frame)
         
         # Predict
-        result = self.predict_from_image(temp_path)
+        result = self.predict_from_image(temp_path, return_landmarks=return_landmarks)
         
         # Cleanup
         if temp_path.exists():

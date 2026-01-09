@@ -16,6 +16,8 @@ from routes_ml_heartrate import router as ml_router
 from routes_ecg_integration import router as ecg_router
 # Unified WebSocket manager (consolidates routes_websocket + routes_face_analysis)
 from websocket_manager import router as websocket_router
+# ML-based stress prediction with trained XGBoost model
+from routes_ml_stress import router as ml_stress_router
 
 # Heartbeat simulation service URL
 HEARTBEAT_SIM_URL = "http://localhost:8001"
@@ -60,6 +62,8 @@ app.include_router(ml_router, tags=["ML Predictions"])
 app.include_router(ecg_router, tags=["ECG Integration"])
 # Unified WebSocket router handles all WebSocket endpoints under /ws/*
 app.include_router(websocket_router, prefix="/ws", tags=["WebSocket"])
+# ML stress prediction endpoints (WebSocket + REST)
+app.include_router(ml_stress_router, prefix="/ws", tags=["ML Stress Analysis"])
 
 
 @app.get("/")

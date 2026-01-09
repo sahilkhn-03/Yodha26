@@ -30,15 +30,23 @@ function App() {
   });
   const [trendData, setTrendData] = useState<number[]>([25]);
   const [isCameraEnabled, setIsCameraEnabled] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(true);
 
   useEffect(() => {
     // Ensure the browser tab title is correctly set
     document.title = 'NeuroBalance AI';
   }, []);
 
-  // Simulator: only run when camera is off
+  // Simulator: only run when camera is off AND we have non-zero data (not just turned off)
   useEffect(() => {
     if (isCameraEnabled) return;
+    
+    // Don't run simulator if all metrics are 0 (camera was just turned off)
+    const allZero = currentData.facial_stress_score === 0 && 
+                    currentData.eye_openness === 0 && 
+                    currentData.brow_tension === 0;
+    if (allZero) return;
+    
     const interval = setInterval(() => {
       const newData: FaceData = {
         timestamp: Date.now(),
@@ -85,16 +93,31 @@ function App() {
                   head_motion: m.head_motion,
                   facial_stress_score: m.facial_stress_score,
                 };
+                
+                // Check if face is detected (all non-zero values)
+                const hasFace = m.facial_stress_score > 0 || m.eye_openness > 0;
+                setFaceDetected(hasFace);
+                
                 setCurrentData(newData);
-                setTrendData((prev) => [...prev, m.facial_stress_score].slice(-60));
+                if (hasFace) {
+                  setTrendData((prev) => [...prev, m.facial_stress_score].slice(-60));
+                }
               }}
             />
           </div>
           <div className="mb-8">
             <StressGauge value={currentData.facial_stress_score} />
+            {isCameraEnabled && !faceDetected && (
+              <div className="text-center mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-amber-800 font-medium">⚠️ No face detected</p>
+                <p className="text-amber-600 text-sm mt-1">Please position your face in the camera view</p>
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {(!isCameraEnabled || faceDetected) && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <MetricCard
               title="Eye Openness"
               value={currentData.eye_openness}
@@ -122,6 +145,8 @@ function App() {
           </div>
 
           <TrendLineChart data={trendData} />
+            </>
+          )}
         </div>
       </main>
 

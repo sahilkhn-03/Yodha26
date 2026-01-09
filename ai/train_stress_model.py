@@ -250,6 +250,133 @@ class FacialFeatureExtractor:
         
         return features
     
+    def extract_features_with_landmarks(self, image_path):
+        """
+        Extract features AND raw landmarks from an image
+        Returns: (features, landmarks) tuple or (None, None) if face not detected
+        """
+        # Read image
+        image = cv2.imread(str(image_path))
+        if image is None:
+            return None, None
+        
+        # Convert to RGB
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # Process with MediaPipe
+        if self.use_legacy:
+            results = self.face_mesh.process(image_rgb)
+            if not results.multi_face_landmarks:
+                return None, None
+            landmarks = results.multi_face_landmarks[0].landmark
+        else:
+            # New tasks API
+            from mediapipe import Image as MPImage, ImageFormat
+            mp_image = MPImage(image_format=ImageFormat.SRGB, data=image_rgb)
+            results = self.face_mesh.detect(mp_image)
+            
+            if not results.face_landmarks:
+                return None, None
+            landmarks = results.face_landmarks[0]
+        
+        # Extract features (same as extract_features)
+        left_ear = self.compute_eye_aspect_ratio(landmarks, self.LEFT_EYE)
+        right_ear = self.compute_eye_aspect_ratio(landmarks, self.RIGHT_EYE)
+        avg_ear = (left_ear + right_ear) / 2.0
+        
+        left_eyebrow_tension = self.compute_eyebrow_tension(
+            landmarks, self.LEFT_EYEBROW, self.LEFT_EYE
+        )
+        right_eyebrow_tension = self.compute_eyebrow_tension(
+            landmarks, self.RIGHT_EYEBROW, self.RIGHT_EYE
+        )
+        avg_eyebrow_tension = (left_eyebrow_tension + right_eyebrow_tension) / 2.0
+        
+        mouth_openness = self.compute_mouth_openness(landmarks)
+        jaw_width, jaw_drop = self.compute_jaw_tension(landmarks)
+        
+        # Compile feature vector
+        features = np.array([
+            avg_ear,
+            left_ear,
+            right_ear,
+            avg_eyebrow_tension,
+            left_eyebrow_tension,
+            right_eyebrow_tension,
+            mouth_openness,
+            jaw_width,
+            jaw_drop,
+        ])
+        
+        # Convert landmarks to list of dicts for JSON serialization
+        landmarks_list = [{'x': lm.x, 'y': lm.y, 'z': lm.z} for lm in landmarks]
+        
+        return features, landmarks_list
+    
+    def extract_features_from_array(self, image_array):
+        """
+        Extract features from a numpy array (BGR image)
+        Used for real-time video processing
+        
+        Args:
+            image_array: OpenCV BGR image (numpy array)
+        
+        Returns:
+            numpy array of features or None if face not detected
+        """
+        if image_array is None:
+            return None
+        
+        # Convert to RGB
+        image_rgb = cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB)
+        
+        # Process with MediaPipe
+        if self.use_legacy:
+            results = self.face_mesh.process(image_rgb)
+            if not results.multi_face_landmarks:
+                return None
+            landmarks = results.multi_face_landmarks[0].landmark
+        else:
+            # New tasks API
+            from mediapipe import Image as MPImage, ImageFormat
+            mp_image = MPImage(image_format=ImageFormat.SRGB, data=image_rgb)
+            results = self.face_mesh.detect(mp_image)
+            
+            if not results.face_landmarks:
+                return None
+            landmarks = results.face_landmarks[0]
+        
+        # Extract features (same as extract_features)
+        left_ear = self.compute_eye_aspect_ratio(landmarks, self.LEFT_EYE)
+        right_ear = self.compute_eye_aspect_ratio(landmarks, self.RIGHT_EYE)
+        avg_ear = (left_ear + right_ear) / 2.0
+        
+        left_eyebrow_tension = self.compute_eyebrow_tension(
+            landmarks, self.LEFT_EYEBROW, self.LEFT_EYE
+        )
+        right_eyebrow_tension = self.compute_eyebrow_tension(
+            landmarks, self.RIGHT_EYEBROW, self.RIGHT_EYE
+        )
+        avg_eyebrow_tension = (left_eyebrow_tension + right_eyebrow_tension) / 2.0
+        
+        mouth_openness = self.compute_mouth_openness(landmarks)
+        jaw_width, jaw_drop = self.compute_jaw_tension(landmarks)
+        
+        # Compile feature vector
+        features = np.array([
+            avg_ear,                  # 0: Average Eye Aspect Ratio
+            left_ear,                 # 1: Left EAR
+            right_ear,                # 2: Right EAR
+            avg_eyebrow_tension,      # 3: Average eyebrow tension
+            left_eyebrow_tension,     # 4: Left eyebrow tension
+            right_eyebrow_tension,    # 5: Right eyebrow tension
+            mouth_openness,           # 6: Mouth openness
+            jaw_width,                # 7: Jaw width
+            jaw_drop,                 # 8: Jaw drop
+        ])
+        
+        return features
+    
     def __del__(self):
         """Cleanup"""
         if hasattr(self, 'face_mesh'):
