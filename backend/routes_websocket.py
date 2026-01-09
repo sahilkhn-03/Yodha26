@@ -13,8 +13,12 @@ import asyncio
 import random
 import json
 from datetime import datetime
+import httpx
 
 router = APIRouter()
+
+# Configuration for heartbeat simulation service
+HEARTBEAT_SIM_URL = "http://localhost:8001"
 
 # Connection manager to handle multiple clients
 class ConnectionManager:
@@ -64,79 +68,145 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+async def get_heartbeat_data():
+    """
+    Fetch real heartbeat data from heartbeat simulation service.
+    
+    Returns data from heartbeat_sim.py which includes:
+    - Both NORMAL and ELEVATED heart rates
+    - Real stress levels (not fake)
+    - Blood pressure data
+    - Timestamp
+    
+    This ensures the model gets ALL heart rate data, not just elevated.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{HEARTBEAT_SIM_URL}/heartbeat/current", timeout=2.0)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return None
+    except Exception as e:
+        print(f"Error fetching heartbeat data: {e}")
+        return None
+
+
 async def generate_stress_data():
     """
-    Generate simulated stress monitoring data.
+    Generate comprehensive stress monitoring data using REAL heartbeat simulation.
     
-    Simulates realistic patterns:
-    - Stress score: 0.0 to 1.0 (gradually changing, not random jumps)
-    - Heart rate: 60-120 BPM (realistic range)
-    - Facial stress: 0.0 to 1.0 (based on facial analysis simulation)
-    - Timestamp: ISO format for frontend charting
+    NOW INCLUDES:
+    - ✅ NORMAL heart rates (60-80 BPM baseline)
+    - ✅ ELEVATED heart rates (90-180 BPM during stress)
+    - ✅ Real stress levels from heartbeat_sim.py
+    - ✅ Blood pressure data
+    - ✅ Facial stress simulation
     
-    Why realistic simulation?
-    - Test frontend charts before real AI integration
-    - Demo the system without needing real patients
-    - Validate data flow end-to-end
+    Model will receive ALL data points, both normal and elevated!
     """
-    # Starting baseline values
-    stress_score = random.uniform(0.3, 0.5)
-    heart_rate = random.randint(65, 75)
     facial_stress = random.uniform(0.2, 0.4)
     
     while True:
-        # Gradual changes (more realistic than random jumps)
-        stress_score += random.uniform(-0.05, 0.08)
-        stress_score = max(0.0, min(1.0, stress_score))  # Clamp 0-1
+        # Fetch REAL heartbeat data (includes normal AND elevated rates)
+        heartbeat_data = await get_heartbeat_data()
         
-        heart_rate += random.randint(-3, 5)
-        heart_rate = max(60, min(120, heart_rate))  # Clamp 60-120
+        if heartbeat_data:
+            # Use REAL heart rate and stress from simulation
+            heart_rate = heartbeat_data.get("bpm", 72)
+            stress_level = heartbeat_data.get("stress_level", 0.0)
+            systolic = heartbeat_data.get("systolic", 120)
+            diastolic = heartbeat_data.get("diastolic", 80)
+            timestamp = heartbeat_data.get("timestamp", datetime.utcnow().isoformat())
+            
+            # Update facial stress based on actual stress level
+            facial_stress += random.uniform(-0.04, 0.06) + (stress_level * 0.1)
+            facial_stress = max(0.0, min(1.0, facial_stress))
+            
+            # Determine status based on heart rate
+            if heart_rate < 75:
+                status = "normal"
+            elif heart_rate < 90:
+                status = "slightly_elevated"
+            elif heart_rate < 110:
+                status = "elevated"
+            else:
+                status = "high_stress"
+            
+        else:
+            # Fallback if heartbeat service is not available
+            heart_rate = random.randint(65, 75)
+            stress_level = random.uniform(0.0, 0.3)
+            systolic = 120
+            diastolic = 80
+            timestamp = datetime.utcnow().isoformat()
+            status = "normal_fallback"
+            
+            facial_stress += random.uniform(-0.04, 0.06)
+            facial_stress = max(0.0, min(1.0, facial_stress))
         
-        facial_stress += random.uniform(-0.04, 0.06)
-        facial_stress = max(0.0, min(1.0, facial_stress))
-        
-        # Create data packet
+        # Create comprehensive data packet
         data = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "stress_score": round(stress_score, 3),
+            "timestamp": timestamp,
+            "stress_score": round(stress_level, 3),
             "heart_rate": heart_rate,
+            "systolic_bp": systolic,
+            "diastolic_bp": diastolic,
             "facial_stress": round(facial_stress, 3),
-            "status": "monitoring"
+            "status": status,
+            "data_source": "heartbeat_simulation" if heartbeat_data else "fallback"
         }
         
         yield data
         
-        # Random interval 200-500ms for realistic variation
-        await asyncio.sleep(random.uniform(0.2, 0.5))
+        # Match heartbeat simulation frequency (500ms)
+        await asyncio.sleep(0.5)
 
 
 @router.websocket("/simulation")
 async def websocket_simulation(websocket: WebSocket):
     """
-    WebSocket endpoint for stress data simulation.
+    WebSocket endpoint for COMPLETE stress data (NORMAL + ELEVATED heart rates).
     
     Endpoint: ws://localhost:8000/ws/simulation
     
-    Data format (JSON every 200-500ms):
+    ⚠️ IMPORTANT: Now includes ALL heart rate data:
+    - ✅ Normal baseline (60-80 BPM)
+    - ✅ Elevated stress (90-180 BPM)
+    - ✅ Everything in between
+    
+    Data format (JSON every 500ms):
     {
         "timestamp": "2026-01-09T12:34:56.789Z",
-        "stress_score": 0.742,
-        "heart_rate": 95,
-        "facial_stress": 0.631,
-        "status": "monitoring"
+        "stress_score": 0.742,      // 0.0 = calm, 1.0 = high stress
+        "heart_rate": 95,            // Current BPM (can be normal OR elevated)
+        "systolic_bp": 135,          // Blood pressure
+        "diastolic_bp": 87,
+        "facial_stress": 0.631,      // From facial analysis
+        "status": "elevated",        // normal, slightly_elevated, elevated, high_stress
+        "data_source": "heartbeat_simulation"
     }
     
-    Frontend usage:
+    Frontend/Model usage:
         const ws = new WebSocket('ws://localhost:8000/ws/simulation');
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            updateChart(data);
+            
+            // Model now gets ALL data, not just high stress!
+            if (data.status === "normal") {
+                console.log("Normal heart rate:", data.heart_rate);
+            } else {
+                console.log("Elevated heart rate:", data.heart_rate);
+            }
+            
+            // Send to ML model for analysis
+            analyzeStressLevel(data);
         };
     
-    Why async?
-    - Non-blocking: Server can handle multiple clients simultaneously
-    - Each client gets their own data stream
-    - No performance impact on REST API endpoints
+    Why this matters for ML:
+    - Model needs normal data to establish baseline
+    - Can't detect stress without knowing what's normal
+    - Balanced dataset (normal + elevated) = better predictions
     """
     # Connect client
     await manager.connect(websocket)

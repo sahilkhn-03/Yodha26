@@ -72,10 +72,10 @@ class SimulationEngine:
         Generate realistic heartbeat data.
         
         Realistic patterns:
-        1. Baseline: 60-80 bpm at rest
+        1. Baseline: 60-80 bpm at rest (STAYS HERE unless stress button pressed)
         2. Variability: Small random fluctuations (±2-3 bpm)
-        3. Stress response: Gradual increase to 90-120 bpm
-        4. Recovery: Slow return to baseline
+        3. Stress response: ONLY when stress button pressed (90-140 bpm)
+        4. Recovery: Slow return to baseline after stress button
         """
         
         # Check if stress button is active (5 second duration)
@@ -88,16 +88,11 @@ class SimulationEngine:
                 # After 5 seconds, deactivate and start decay
                 self.stress_button_active = False
                 self.stress_button_start_time = None
-        else:
-            # Random stress events (simulate anxiety, exercise, etc.)
-            # Variable probability: 5-8% chance per update for realistic sporadic stress
-            stress_probability = random.uniform(0.05, 0.08)
-            if random.random() < stress_probability:
-                self.stress_level = random.uniform(0.3, 0.9)
+        # REMOVED: Random stress events - only stress when button is pressed!
         
         # Stress decay (return to baseline) - only when button not active
         if not self.stress_button_active:
-            self.stress_level *= 0.98
+            self.stress_level *= 0.95  # Faster decay to return to normal
             self.stress_level = max(0.0, self.stress_level)
         
         # Calculate target heart rate based on stress
