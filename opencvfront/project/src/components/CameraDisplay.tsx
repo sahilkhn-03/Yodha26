@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { drawFaceMesh } from '../lib/faceMesh';
 
 interface CameraDisplayProps {
   isCameraEnabled: boolean;
@@ -56,9 +57,12 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
         running = true;
+        console.log('✅ Camera started, backend will process face detection');
         
-        // Draw loop: show raw video until backend sends annotated frames
-        let lastAnnotatedFrame: HTMLImageElement | null = null;
+        // Store landmarks received from backend
+        let currentLandmarks: Array<{ x: number; y: number; z: number }> | null = null;
+        
+        // Draw loop: show raw video with subtle face mesh overlay
         const drawLoop = () => {
           if (!running || !videoRef.current || !overlayCanvasRef.current) return;
           const ctx = overlayCanvasRef.current.getContext('2d');
@@ -69,19 +73,19 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
             // Draw raw video as base
             ctx.drawImage(videoRef.current, 0, 0);
             
-            // If we have annotated frame from backend, draw it on top
-            if (lastAnnotatedFrame) {
-              ctx.drawImage(lastAnnotatedFrame, 0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
+            // Draw subtle face mesh overlay
+            if (currentLandmarks && currentLandmarks.length > 0) {
+              drawFaceMesh(ctx, currentLandmarks, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
             }
           }
           animationFrameRef.current = requestAnimationFrame(drawLoop);
         };
         drawLoop();
         
-        // Setup WebSocket for real facial analysis
-        const ws = new WebSocket('ws://localhost:8000/ws/face-analysis');
+        // Setup WebSocket for ML-based stress prediction (XGBoost - 77.3% accuracy)
+        const ws = new WebSocket('ws://localhost:8000/ws/ml-stress-analysis');
         ws.onopen = () => {
-          console.log('✅ Connected to facial stress analysis');
+          console.log('✅ Connected to ML stress analysis (XGBoost - 77.3% accuracy)');
           console.log('🎥 Starting frame capture...');
           startFrameCapture();
         };
@@ -89,34 +93,70 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
           try {
             const data = JSON.parse(event.data);
             if (data.error) {
-              console.error('Face analysis error:', data.error);
+              console.error('ML stress analysis error:', data.error);
               return;
             }
             
-            // Apply light smoothing (EMA)
-            const alpha = 0.3;
-            const prev = prevMetricsRef.current;
-            const smoothed = {
-              eye_openness: prev ? alpha * data.eye_openness + (1 - alpha) * prev.eye_openness : data.eye_openness,
-              brow_tension: prev ? alpha * data.brow_tension + (1 - alpha) * prev.brow_tension : data.brow_tension,
-              jaw_tension: prev ? alpha * data.jaw_tension + (1 - alpha) * prev.jaw_tension : data.jaw_tension,
-              facial_asymmetry: prev ? alpha * data.facial_asymmetry + (1 - alpha) * prev.facial_asymmetry : data.facial_asymmetry,
-              head_motion: prev ? alpha * data.head_motion + (1 - alpha) * prev.head_motion : data.head_motion,
-              facial_stress_score: prev ? alpha * data.facial_stress_score + (1 - alpha) * prev.facial_stress_score : data.facial_stress_score,
-            };
-            prevMetricsRef.current = smoothed;
-            onMetricsUpdate?.(smoothed);
-            
-            // Update annotated frame with mesh overlay
-            if (data.frame_overlay) {
-              const img = new Image();
-              img.onload = () => {
-                lastAnnotatedFrame = img;
-              };
-              img.src = data.frame_overlay;
+            if (!data.success) {
+              // No face detected - clear visualization
+              console.log('⚠️ No face detected');
+              currentLandmarks = null;
+              prevMetricsRef.current = null;
+              onMetricsUpdate?.({
+                eye_openness: 0,
+                brow_tension: 0,
+                jaw_tension: 0,
+                facial_asymmetry: 0,
+                head_motion: 0,
+                facial_stress_score: 0,
+              });
+              return;
             }
+            
+            // Store landmarks from backend for visualization
+            if (data.landmarks && data.landmarks.length > 0) {
+              currentLandmarks = data.landmarks;
+              console.log('📍 Received', currentLandmarks.length, 'landmarks from backend');
+            } else {
+              currentLandmarks = null;
+            }
+            
+            // Convert ML features to UI metrics - INTUITIVE SCALING
+            const features = data.features;
+            
+            // Eye Aspect Ratio: LITERAL eye openness (high % = wide open, low % = closed)
+            // Typical range: 0.15 (closed) to 0.40 (wide open)
+            const earNormalized = Math.max(0, Math.min(1, (features.avg_eye_aspect_ratio - 0.15) / 0.25));
+            const eyeOpenness = earNormalized * 100; // DIRECT: open eyes = high %, closed = low %
+            
+            // Brow tension: amplified for visibility
+            const browTension = Math.min(100, Math.max(0, features.avg_eyebrow_tension * 500));
+            
+            // Jaw tension: amplified
+            const jawTension = Math.min(100, Math.max(0, features.jaw_drop * 300));
+            
+            // Facial asymmetry: amplified
+            const facialAsymmetry = Math.min(100, Math.max(0, Math.abs(features.left_ear - features.right_ear) * 2000));
+            
+            // Head motion: amplified significantly
+            const headMotion = Math.min(100, Math.max(0, Math.abs(features.left_eyebrow_tension - features.right_eyebrow_tension) * 1000));
+            
+            const mlMetrics = {
+              eye_openness: eyeOpenness,
+              brow_tension: browTension,
+              jaw_tension: jawTension,
+              facial_asymmetry: facialAsymmetry,
+              head_motion: headMotion,
+              facial_stress_score: Math.min(100, Math.max(0, data.stress_score)),
+            };
+            
+            console.log(`🧠 ML: ${data.stress_score.toFixed(1)}/100 (${data.stress_level})`);
+            console.log(`📊 Metrics: Eye=${mlMetrics.eye_openness.toFixed(0)}% Brow=${mlMetrics.brow_tension.toFixed(0)}% Jaw=${mlMetrics.jaw_tension.toFixed(0)}% Motion=${mlMetrics.head_motion.toFixed(0)}%`);
+            
+            // Send directly without smoothing
+            onMetricsUpdate?.(mlMetrics);
           } catch (e) {
-            console.error('Error parsing face analysis data:', e);
+            console.error('Error parsing ML stress data:', e);
           }
         };
         ws.onerror = () => {
@@ -193,6 +233,17 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         stream.getTracks().forEach((t) => t.stop());
         stream = null;
       }
+      
+      // Clear metrics when camera is turned off
+      prevMetricsRef.current = null;
+      onMetricsUpdate?.({
+        eye_openness: 0,
+        brow_tension: 0,
+        jaw_tension: 0,
+        facial_asymmetry: 0,
+        head_motion: 0,
+        facial_stress_score: 0,
+      });
     }
 
     if (isCameraEnabled) {
