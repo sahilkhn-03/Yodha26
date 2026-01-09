@@ -79,7 +79,7 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         drawLoop();
         
         // Setup WebSocket for real facial analysis
-        const ws = new WebSocket('ws://localhost:8000/face-analysis');
+        const ws = new WebSocket('ws://localhost:8000/ws/face-analysis');
         ws.onopen = () => {
           console.log('✅ Connected to facial stress analysis');
           console.log('🎥 Starting frame capture...');

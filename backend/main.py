@@ -11,8 +11,8 @@ from models import User, Patient, Assessment
 from routes_auth import router as auth_router
 from routes_patients import router as patients_router
 from routes_assessments import router as assessments_router
-from routes_websocket import router as websocket_router
-from routes_face_analysis import router as face_analysis_router
+# Unified WebSocket manager (consolidates routes_websocket + routes_face_analysis)
+from websocket_manager import router as websocket_router
 
 # Heartbeat simulation service URL
 HEARTBEAT_SIM_URL = "http://localhost:8001"
@@ -52,8 +52,8 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(patients_router, prefix="/patients", tags=["Patients"])
 app.include_router(assessments_router, prefix="/assessments", tags=["Assessments"])
+# Unified WebSocket router handles all WebSocket endpoints under /ws/*
 app.include_router(websocket_router, prefix="/ws", tags=["WebSocket"])
-app.include_router(face_analysis_router, tags=["Face Analysis"])  # No prefix - endpoint is /ws/face-analysis
 
 
 @app.get("/")
@@ -97,11 +97,7 @@ async def get_current_heartbeat():
     - Check if heart rate is normal or elevated
     - Continuous monitoring without WebSocket
     
-<<<<<<< HEAD
-    WARNING: Returns ALL data (normal + elevated), not filtered!
-=======
     ⚠️ Returns ALL data (normal + elevated), not filtered!
->>>>>>> 94f2d3ea339fd48608dc024b1df32f82b33374b2
     """
     try:
         async with httpx.AsyncClient() as client:
