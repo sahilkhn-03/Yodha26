@@ -1,0 +1,14 @@
+# Voice Stress Analysis Dependencies
+# CPU-only, no deep learning frameworks required
+
+# Core audio processing
+librosa>=0.10.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Audio input (optional - for real-time capture)
+sounddevice>=0.4.6
+# Alternative: pyaudio>=0.2.13
+
+# Utilities
+numba>=0.57.0  # Required by librosa for performance

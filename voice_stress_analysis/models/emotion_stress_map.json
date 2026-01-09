@@ -1,0 +1,10 @@
+{
+    "neutral": 15,
+    "assertive": 25,
+    "encouraging": 20,
+    "happy": 18,
+    "excited": 45,
+    "concerned": 65,
+    "apologetic": 55,
+    "sad": 70
+}
