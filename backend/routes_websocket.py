@@ -13,7 +13,40 @@ import asyncio
 import random
 import json
 from datetime import datetime
+<<<<<<< HEAD
 import httpx
+=======
+<<<<<<< HEAD
+import httpx
+=======
+import base64
+
+# Try importing OpenCV + NumPy for image decode; optional
+try:
+    import numpy as np  # type: ignore
+    import cv2  # type: ignore
+except Exception:
+    np = None  # type: ignore
+    cv2 = None  # type: ignore
+
+# Try to import baseline facial stress engine for landmark visualization
+baseline_engine = None
+try:
+    import os, sys
+    repo_root = os.path.dirname(os.path.dirname(__file__))
+    baseline_dir = os.path.join(repo_root, 'facial_emotion_recognition_baseline')
+    if baseline_dir not in sys.path:
+        sys.path.append(baseline_dir)
+    from facial_stress_inference_v2 import FacialStressInference, StressConfig  # type: ignore
+    baseline_engine = FacialStressInference(StressConfig(show_landmarks=True, show_connections=True))
+except Exception:
+    baseline_engine = None
+    try:
+        from utils.face_analysis import analyze_face  # type: ignore
+    except Exception:
+        analyze_face = None  # type: ignore
+>>>>>>> d996b41 (Include local frontend + backend changes (mesh overlay + baseline wiring))
+>>>>>>> 94f2d3e (simulation)
 
 router = APIRouter()
 
@@ -288,6 +321,190 @@ async def broadcast_simulation():
     async for data in generate_stress_data():
         if manager.active_connections:
             await manager.broadcast(data)
+
+
+# -------------------------------
+# Face Analysis WebSocket (Realtime)
+# -------------------------------
+
+def _decode_base64_image(data_url_or_b64: str):
+    """
+    Decode a base64-encoded image string to an OpenCV BGR image if possible.
+    Accepts data URLs (e.g., "data:image/jpeg;base64,....") or raw base64.
+    Returns:
+        image: np.ndarray (BGR) if cv2 is available, else None
+        raw_bytes: bytes of the decoded image for custom pipelines
+    """
+    try:
+        # Strip data URL header if present
+        if "," in data_url_or_b64 and data_url_or_b64.startswith("data:"):
+            b64_part = data_url_or_b64.split(",", 1)[1]
+        else:
+            b64_part = data_url_or_b64
+        raw = base64.b64decode(b64_part)
+        if cv2 is not None and np is not None:
+            buf = np.frombuffer(raw, dtype=np.uint8)
+            img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+            return img, raw
+        return None, raw
+    except Exception:
+        return None, None
+
+
+def _safe_analyze(frame_img, frame_bytes, last_metrics: dict | None):
+    """
+    Call the existing analyze_face(frame) if available; otherwise return fallback metrics.
+    - frame_img: np.ndarray (BGR) or None
+    - frame_bytes: bytes or None
+    """
+    # Default zeros or last known
+    default = {
+        "eye_openness": 0.0,
+        "brow_tension": 0.0,
+        "jaw_tension": 0.0,
+        "head_motion": 0.0,
+        "facial_stress_score": 0.0,
+    }
+    try:
+        # Prefer baseline engine with landmarks visualization if available
+        if baseline_engine is not None and frame_img is not None:
+            # baseline returns dict with keys: facial_stress, eye_closure, eyebrow_tension, jaw_tension
+            result = baseline_engine.process_frame(frame_img)  # type: ignore
+            mapped = {
+                # Convert closure to openness
+                "eye_openness": float(1.0 - float(result.get("eye_closure", 0.0))),
+                "brow_tension": float(result.get("eyebrow_tension", 0.0)),
+                "jaw_tension": float(result.get("jaw_tension", 0.0)),
+                "head_motion": 0.0,
+                "facial_stress_score": float(result.get("facial_stress", 0.0)),
+            }
+            return mapped
+        # Otherwise call simple analyze_face if available
+        if 'analyze_face' in globals() and analyze_face:
+            inp = frame_img if frame_img is not None else frame_bytes
+            if inp is None:
+                return last_metrics or default
+            result = analyze_face(inp)  # type: ignore
+            for k in default.keys():
+                if k not in result:
+                    result[k] = 0.0
+            # Maintain keys expected by frontend
+            mapped = {
+                "eye_openness": float(result.get("eye_openness", 0.0)),
+                "brow_tension": float(result.get("brow_tension", 0.0)),
+                "jaw_tension": float(result.get("jaw_tension", 0.0)),
+                "head_motion": float(result.get("head_motion", 0.0)),
+                "facial_stress_score": float(result.get("facial_stress_score", 0.0)),
+            }
+            return mapped
+        # Fallback
+        return last_metrics or default
+    except Exception:
+        return last_metrics or default
+
+
+def _generate_overlay(frame_img):
+    """Return base64 JPEG of frame with landmarks overlay if baseline available."""
+    try:
+        if baseline_engine is not None and frame_img is not None:
+            result, processed = baseline_engine.process_frame_with_visualization(frame_img)  # type: ignore
+            # Encode processed image to JPEG base64 data URL
+            _, buf = cv2.imencode('.jpg', processed)
+            b64 = base64.b64encode(buf.tobytes()).decode('ascii')
+            return f"data:image/jpeg;base64,{b64}"
+    except Exception:
+        pass
+    return None
+
+
+@router.websocket("/face-analysis")
+async def websocket_face_analysis(websocket: WebSocket):
+    """
+    Real-time face analysis WebSocket.
+
+    Frontend → Backend:
+    {
+      "frame": "<base64>",
+      "timestamp": 1736420000000
+    }
+
+    Backend → Frontend:
+    {
+      "timestamp": "2026-01-09T12:34:56.789Z",
+      "eye_openness": 0.0,
+      "brow_tension": 0.0,
+      "jaw_tension": 0.0,
+      "head_motion": 0.0,
+      "facial_stress_score": 0.0
+    }
+
+    Performance rules:
+    - Max 10 FPS processing (every ~100ms)
+    - Skip frames if backlog builds up (process latest only)
+    - Handle face-not-detected gracefully (zeros or last values)
+    """
+    await manager.connect(websocket)
+
+    last_frame_payload: dict | None = None
+    last_metrics: dict | None = None
+    process_interval = 0.1  # 100ms
+    running = True
+
+    async def receiver_loop():
+        nonlocal last_frame_payload, running
+        try:
+            while running:
+                # Receive latest frame; overwrite to drop backlog
+                msg = await websocket.receive_text()
+                try:
+                    payload = json.loads(msg)
+                    # Expect keys: frame (base64), timestamp
+                    if isinstance(payload, dict) and "frame" in payload:
+                        last_frame_payload = payload
+                except Exception:
+                    # Ignore malformed messages
+                    continue
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            pass
+
+    async def processor_loop():
+        nonlocal last_frame_payload, last_metrics, running
+        try:
+            while running:
+                start = asyncio.get_event_loop().time()
+                payload = last_frame_payload
+                metrics = last_metrics
+                if payload is not None:
+                    img, raw = _decode_base64_image(str(payload.get("frame", "")))
+                    metrics = _safe_analyze(img, raw, metrics)
+                    last_metrics = metrics
+                    message = {"timestamp": datetime.utcnow().isoformat(), **metrics}
+                    overlay = _generate_overlay(img)
+                    if overlay:
+                        message["frame_overlay"] = overlay
+                    await websocket.send_json(message)
+                # Sleep to enforce ~10 FPS
+                elapsed = asyncio.get_event_loop().time() - start
+                await asyncio.sleep(max(0.0, process_interval - elapsed))
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            pass
+
+    try:
+        # Start receiver and processor concurrently
+        recv_task = asyncio.create_task(receiver_loop())
+        proc_task = asyncio.create_task(processor_loop())
+        await asyncio.gather(recv_task, proc_task)
+    except WebSocketDisconnect:
+        running = False
+        manager.disconnect(websocket)
+    except Exception as e:
+        running = False
+        print(f"WebSocket /face-analysis error: {e}")
+        manager.disconnect(websocket)
 
 
 # How to test:

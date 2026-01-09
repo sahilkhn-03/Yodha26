@@ -1,6 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import { FaceMesh, type NormalizedLandmarkList } from '@mediapipe/face_mesh';
-import { computeFaceMetrics } from '../lib/faceMetrics';
 
 interface CameraDisplayProps {
   isCameraEnabled: boolean;
@@ -17,11 +15,20 @@ interface CameraDisplayProps {
 
 export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate }: CameraDisplayProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const faceMeshRef = useRef<FaceMesh | null>(null);
-  const animationRef = useRef<number | null>(null);
-  const prevMetricsRef = useRef<ReturnType<typeof computeFaceMetrics> | undefined>(undefined);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const sendIntervalRef = useRef<number | null>(null);
+  const [overlaySrc, setOverlaySrc] = React.useState<string | null>(null);
+  const prevMetricsRef = useRef<{
+    eye_openness: number;
+    brow_tension: number;
+    jaw_tension: number;
+    facial_asymmetry: number;
+    head_motion: number;
+    facial_stress_score: number;
+  } | null>(null);
 
-  // Initialize FaceMesh when camera first turns on
+  // Initialize camera and WebSocket when camera turns on
   useEffect(() => {
     let stream: MediaStream | null = null;
     let running = false;
@@ -32,45 +39,80 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
-
-        // Setup MediaPipe FaceMesh
-        const faceMesh = new FaceMesh({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-        });
-        faceMesh.setOptions({
-          maxNumFaces: 1,
-          refineLandmarks: true,
-          minDetectionConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-        });
-        faceMesh.onResults((results) => {
-          const landmarks = results.multiFaceLandmarks?.[0] as NormalizedLandmarkList | undefined;
-          if (landmarks) {
-            const metrics = computeFaceMetrics(landmarks, prevMetricsRef.current);
-            prevMetricsRef.current = metrics;
-            onMetricsUpdate?.(metrics);
+        // Setup WebSocket
+        const ws = new WebSocket('ws://localhost:8000/ws/face-analysis');
+        ws.onopen = () => {
+          // Start sending frames at ~10 FPS
+          running = true;
+          startFrameLoop();
+        };
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            // Backend returns metrics; apply light smoothing (EMA)
+            const alpha = 0.3;
+            const prev = prevMetricsRef.current;
+            const smoothed = {
+              eye_openness: prev ? alpha * data.eye_openness + (1 - alpha) * prev.eye_openness : data.eye_openness,
+              brow_tension: prev ? alpha * data.brow_tension + (1 - alpha) * prev.brow_tension : data.brow_tension,
+              jaw_tension: prev ? alpha * data.jaw_tension + (1 - alpha) * prev.jaw_tension : data.jaw_tension,
+              facial_asymmetry: prev ? alpha * (data.facial_stress_score * 0.1) + (1 - alpha) * prev.facial_asymmetry : data.facial_stress_score * 0.1,
+              head_motion: prev ? alpha * data.head_motion + (1 - alpha) * prev.head_motion : data.head_motion,
+              facial_stress_score: prev ? alpha * data.facial_stress_score + (1 - alpha) * prev.facial_stress_score : data.facial_stress_score,
+            };
+            prevMetricsRef.current = smoothed;
+            onMetricsUpdate?.(smoothed);
+            if (data.frame_overlay && typeof data.frame_overlay === 'string') {
+              setOverlaySrc(data.frame_overlay);
+            }
+          } catch (e) {
+            // Ignore malformed messages
           }
-        });
-        faceMeshRef.current = faceMesh;
-
-        running = true;
-        renderLoop();
+        };
+        ws.onerror = () => {
+          // Fail softly; don't block UI
+        };
+        wsRef.current = ws;
       } catch (err) {
         console.error('Camera start error', err);
       }
     }
 
-    async function renderLoop() {
-      if (!running) return;
-      if (videoRef.current && faceMeshRef.current) {
-        await faceMeshRef.current.send({ image: videoRef.current });
-      }
-      animationRef.current = requestAnimationFrame(renderLoop);
+    function startFrameLoop() {
+      if (!videoRef.current) return;
+      const canvas = canvasRef.current || document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      canvasRef.current = canvas;
+      // Send every ~100ms
+      sendIntervalRef.current = window.setInterval(() => {
+        if (!running || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+        if (!videoRef.current || !ctx) return;
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        const payload = {
+          frame: dataUrl,
+          timestamp: Date.now(),
+        };
+        try {
+          wsRef.current.send(JSON.stringify(payload));
+        } catch (e) {
+          // Ignore send errors
+        }
+      }, 100);
     }
 
     function stopCamera() {
       running = false;
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (sendIntervalRef.current !== null) {
+        clearInterval(sendIntervalRef.current);
+        sendIntervalRef.current = null;
+      }
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try { wsRef.current.close(); } catch {}
+      }
+      setOverlaySrc(null);
       if (stream) {
         stream.getTracks().forEach((t) => t.stop());
         stream = null;
@@ -117,6 +159,11 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         {isCameraEnabled && (
           <>
             <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" muted playsInline />
+            {overlaySrc && (
+              <img src={overlaySrc} alt="mesh overlay" className="absolute inset-0 w-full h-full object-cover" />
+            )}
+            {/* Offscreen canvas used for frame capture */}
+            <canvas ref={canvasRef} className="hidden" />
           </>
         )}
       </div>
