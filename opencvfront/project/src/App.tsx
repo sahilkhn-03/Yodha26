@@ -34,7 +34,7 @@ function App() {
 
   useEffect(() => {
     // Ensure the browser tab title is correctly set
-    document.title = 'NeuroBalance AI';
+    document.title = 'Facial Stress Predictor';
   }, []);
 
   // Simulator: only run when camera is off AND we have non-zero data (not just turned off)

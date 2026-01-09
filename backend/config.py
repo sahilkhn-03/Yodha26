@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # Application Settings
-    APP_NAME: str = "NeuroBalance AI Backend"
+    APP_NAME: str = "Facial Stress Predictor Backend"
     DEBUG: bool = True
     
     # CORS Origins (comma-separated in .env)
