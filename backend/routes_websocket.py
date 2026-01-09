@@ -13,40 +13,7 @@ import asyncio
 import random
 import json
 from datetime import datetime
-<<<<<<< HEAD
 import httpx
-=======
-<<<<<<< HEAD
-import httpx
-=======
-import base64
-
-# Try importing OpenCV + NumPy for image decode; optional
-try:
-    import numpy as np  # type: ignore
-    import cv2  # type: ignore
-except Exception:
-    np = None  # type: ignore
-    cv2 = None  # type: ignore
-
-# Try to import baseline facial stress engine for landmark visualization
-baseline_engine = None
-try:
-    import os, sys
-    repo_root = os.path.dirname(os.path.dirname(__file__))
-    baseline_dir = os.path.join(repo_root, 'facial_emotion_recognition_baseline')
-    if baseline_dir not in sys.path:
-        sys.path.append(baseline_dir)
-    from facial_stress_inference_v2 import FacialStressInference, StressConfig  # type: ignore
-    baseline_engine = FacialStressInference(StressConfig(show_landmarks=True, show_connections=True))
-except Exception:
-    baseline_engine = None
-    try:
-        from utils.face_analysis import analyze_face  # type: ignore
-    except Exception:
-        analyze_face = None  # type: ignore
->>>>>>> d996b41 (Include local frontend + backend changes (mesh overlay + baseline wiring))
->>>>>>> 94f2d3e (simulation)
 
 router = APIRouter()
 
@@ -70,12 +37,12 @@ class ConnectionManager:
         """Accept and store new WebSocket connection."""
         await websocket.accept()
         self.active_connections.append(websocket)
-        print(f"✅ Client connected. Total clients: {len(self.active_connections)}")
+        print(f"[OK] Client connected. Total clients: {len(self.active_connections)}")
     
     def disconnect(self, websocket: WebSocket):
         """Remove disconnected client."""
         self.active_connections.remove(websocket)
-        print(f"❌ Client disconnected. Total clients: {len(self.active_connections)}")
+        print(f"[INFO] Client disconnected. Total clients: {len(self.active_connections)}")
     
     async def broadcast(self, message: dict):
         """
