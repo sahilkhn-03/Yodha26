@@ -37,6 +37,7 @@ router = APIRouter()
 
 @router.websocket("/ml-stress-analysis")
 async def websocket_ml_stress_analysis(websocket: WebSocket):
+    print("[DEBUG] WebSocket handler called!")
     """
     WebSocket endpoint for real-time ML-based facial stress prediction.
     Uses the trained XGBoost model with 9 facial features.
@@ -72,7 +73,12 @@ async def websocket_ml_stress_analysis(websocket: WebSocket):
         }
     }
     """
+    print("[DEBUG] Accepting WebSocket connection...")
     await websocket.accept()
+    
+    # Debug: Check model availability
+    print(f"[DEBUG] ML_MODEL_AVAILABLE = {ML_MODEL_AVAILABLE}")
+    print(f"[DEBUG] stress_predictor is None = {stress_predictor is None}")
     
     # Check if model is available
     if not ML_MODEL_AVAILABLE or stress_predictor is None:

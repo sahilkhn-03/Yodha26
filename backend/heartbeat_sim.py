@@ -184,9 +184,12 @@ class SimulationEngine:
                         data.prediction = j.get('prediction')
                         data.confidence = float(j.get('confidence', 0.0))
                         data.stress_score = float(j.get('stress_score', 0.0))
-                except Exception:
+                        print(f"✅ ML Prediction: {data.prediction} (score: {data.stress_score:.3f})")
+                    else:
+                        print(f"⚠ ML API returned status {resp.status_code}")
+                except Exception as e:
                     # If ML call fails, leave prediction fields None
-                    pass
+                    print(f"❌ ML API error: {e}")
 
                 # Broadcast to all WebSocket clients
                 await self.broadcast_to_websockets(data)
@@ -796,35 +799,68 @@ async def live_monitor():
         // Generate ECG waveform based on BPM
         function generateECGPoint(bpm, index) {
             const beatsPerSecond = bpm / 60;
-            // Keep consistent samples for proper waveform rendering
-            const samplesPerBeat = 25;
+            // Dynamic samples per beat with HRV - creates non-uniform spacing
+            const baseSamplesPerBeat = 25;
+            const hrvFast = Math.sin(index * 0.08) * 0.12;
+            const hrvSlow = Math.sin(index * 0.015) * 0.18;
+            const hrvRandom = (Math.random() - 0.5) * 0.15;
+            const totalHRV = hrvFast + hrvSlow + hrvRandom;
+            const samplesPerBeat = baseSamplesPerBeat * (1 + totalHRV);
+            
             const beatProgress = (index % samplesPerBeat) / samplesPerBeat;
             
-            // Amplitude scales UP significantly with BPM (higher HR = much bigger waves)
-            // 60 BPM: scale 1.0, 90 BPM: scale 2.0, 120 BPM: scale 3.0, 150 BPM: scale 4.0
-            const amplitudeScale = 0.5 + (bpm / 30);
+            // Dynamic amplitude with continuous variation
+            const baseAmplitudeScale = 0.5 + (bpm / 30);
+            const amplitudeVariation = Math.sin(index * 0.01) * 0.15 + 1;
+            const amplitudeScale = baseAmplitudeScale * amplitudeVariation;
+            
+            // Multi-frequency baseline wander
+            const respiratoryDrift = Math.sin(index * 0.018) * 8;
+            const muscleNoise = Math.sin(index * 0.041) * 3;
+            const baselineWander = respiratoryDrift + muscleNoise;
+            
+            // Irregular rhythm chance
+            const isIrregular = Math.random() < 0.05;
+            const irregularityFactor = isIrregular ? 0.7 + Math.random() * 0.4 : 1.0;
             
             let amplitude = 0;
+            
+            // P wave
             if (beatProgress < 0.1) {
-                // P wave
-                amplitude = Math.sin(beatProgress * 10 * Math.PI) * 35 * amplitudeScale;
-            } else if (beatProgress < 0.3) {
-                // QRS complex
+                const pVariability = 0.85 + Math.random() * 0.3;
+                amplitude = Math.sin(beatProgress * 10 * Math.PI) * 35 * amplitudeScale * pVariability * irregularityFactor;
+            } 
+            // QRS complex
+            else if (beatProgress < 0.3) {
                 if (beatProgress < 0.2) {
-                    amplitude = -50 * amplitudeScale;
+                    const qVariability = 0.9 + Math.random() * 0.2;
+                    amplitude = -50 * amplitudeScale * qVariability;
                 } else if (beatProgress < 0.25) {
-                    amplitude = 150 * amplitudeScale; // R peak - scales dramatically
+                    const rVariability = 0.9 + Math.random() * 0.2;
+                    amplitude = 150 * amplitudeScale * rVariability * irregularityFactor; // R peak
                 } else {
-                    amplitude = -45 * amplitudeScale;
+                    const sVariability = 0.85 + Math.random() * 0.3;
+                    amplitude = -45 * amplitudeScale * sVariability;
                 }
-            } else if (beatProgress < 0.5) {
-                // T wave
-                amplitude = Math.sin((beatProgress - 0.3) * 5 * Math.PI) * 40 * amplitudeScale;
+            } 
+            // T wave
+            else if (beatProgress < 0.5) {
+                const tVariability = 0.8 + Math.random() * 0.4;
+                amplitude = Math.sin((beatProgress - 0.3) * 5 * Math.PI) * 40 * amplitudeScale * tVariability * irregularityFactor;
+            }
+            // Baseline
+            else {
+                amplitude = (Math.random() - 0.5) * 6;
             }
             
-            // Noise scales with BPM
+            // Enhanced physiological noise
             const noiseLevel = 3 + (bpm / 50);
-            return amplitude + (Math.random() * 2 - 1) * noiseLevel;
+            const physiologicalNoise = (Math.random() * 2 - 1) * noiseLevel;
+            
+            // Occasional artifacts (2% chance)
+            const artifactNoise = Math.random() < 0.02 ? (Math.random() - 0.5) * 30 : 0;
+            
+            return amplitude + baselineWander + physiologicalNoise + artifactNoise;
         }
         
         // Draw ECG waveform
@@ -895,6 +931,14 @@ async def live_monitor():
                 
                 updateCount++;
                 
+                // Debug logging
+                console.log('📊 Received data:', {
+                    bpm: data.bpm,
+                    prediction: data.prediction,
+                    stress_score: data.stress_score,
+                    confidence: data.confidence
+                });
+                
                 // Update displays
                 document.getElementById('bpmLive').textContent = data.bpm;
                 document.getElementById('heartRate').textContent = data.bpm;
@@ -911,11 +955,19 @@ async def live_monitor():
                 // Update ML prediction display if available
                 const predLabel = data.prediction || '--';
                 const predScore = (data.stress_score !== undefined && data.stress_score !== null) ? (data.stress_score).toFixed(3) : '--';
-                document.getElementById('mlPrediction').textContent = `${predLabel} (${predScore})`;
+                const mlDisplay = `${predLabel} (${predScore})`;
+                document.getElementById('mlPrediction').textContent = mlDisplay;
+                
+                console.log('✅ Updated ML display to:', mlDisplay);
 
                 // Log high stress events
                 if (data.stress_level > 0.5) {
                     addLog(`🔴 ELEVATED: HR=${data.bpm} BP=${data.systolic}/${data.diastolic}`);
+                }
+                
+                // Log prediction updates
+                if (data.prediction) {
+                    addLog(`🤖 ML: ${data.prediction} (${predScore})`);
                 }
             };
             

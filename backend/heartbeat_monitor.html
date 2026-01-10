@@ -85,6 +85,36 @@
             color: #666;
             margin-top: 5px;
         }
+        
+        /* ML PREDICTION SECTION */
+        .ml-prediction {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+            text-align: center;
+            color: white;
+        }
+        .prediction-result {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .prediction-stress { color: #ff6b6b; }
+        .prediction-normal { color: #51cf66; }
+        .confidence-bar {
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            height: 8px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        .confidence-fill {
+            height: 100%;
+            background: #51cf66;
+            transition: width 0.5s ease;
+        }
+        .confidence-fill.stress { background: #ff6b6b; }
         .controls {
             display: flex;
             gap: 10px;
@@ -256,8 +286,21 @@
                 <div class="metric-value" id="stress">--</div>
                 <div class="metric-label">Stress Level</div>
             </div>
-        </div>
-        
+        </div>        
+        <!-- ML PREDICTION SECTION -->
+        <div class="ml-prediction">
+            <h3>🧠 ML Stress Prediction</h3>
+            <div class="prediction-result" id="prediction">--</div>
+            <div class="confidence-bar">
+                <div class="confidence-fill" id="confidenceBar" style="width: 0%"></div>
+            </div>
+            <div style="font-size: 14px; opacity: 0.9;">
+                Confidence: <span id="confidence">--</span>%
+            </div>
+            <button onclick="getMLPrediction()" class="btn-stress" style="margin-top: 15px; width: auto; padding: 10px 20px;">
+                🔍 Get Prediction
+            </button>
+        </div>        
         <div class="controls">
             <button class="btn-start" onclick="startSimulation()">▶️ Start</button>
             <button class="btn-stress" onclick="triggerStress()">⚡ Stress</button>
@@ -308,6 +351,7 @@
         let currentBPM = 0;
         let currentVariability = 0;
         let currentStress = 0;
+        let predictionUpdateInterval = null;
 
         async function startSimulation() {
             try {
@@ -325,6 +369,10 @@
                 await fetch(`${API_BASE}/simulation/stop`, { method: 'POST' });
                 updateStatus('stopped', '⚫ Simulation Stopped');
                 if (ws) ws.close();
+                if (predictionUpdateInterval) {
+                    clearInterval(predictionUpdateInterval);
+                    predictionUpdateInterval = null;
+                }
             } catch (error) {
                 alert('Error stopping simulation');
             }
@@ -339,7 +387,13 @@
         }
 
         function connectWebSocket() {
-            ws = new WebSocket('ws://localhost:8001/ws/heartbeat');
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/heartbeat`);
+            
+            ws.onopen = () => {
+                console.log('🔗 WebSocket connected to heartbeat simulator');
+                updateStatus('running', '🟢 Connected - Receiving Data');
+            };
             
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
@@ -362,6 +416,11 @@
                 } else {
                     stressEl.style.color = '#667eea';
                 }
+                
+                // Auto-get ML prediction when heartbeat data updates
+                if (currentBPM > 0) {
+                    getMLPrediction();
+                }
             };
             
             ws.onerror = () => {
@@ -370,6 +429,10 @@
             
             ws.onclose = () => {
                 updateStatus('stopped', '⚫ Disconnected');
+                if (predictionUpdateInterval) {
+                    clearInterval(predictionUpdateInterval);
+                    predictionUpdateInterval = null;
+                }
             };
         }
 
@@ -377,6 +440,44 @@
             const statusEl = document.getElementById('status');
             statusEl.textContent = text;
             statusEl.className = `status status-${state}`;
+        }
+        
+        // ML PREDICTION FUNCTION
+        async function getMLPrediction() {
+            try {
+                const response = await fetch('http://localhost:8000/api/ecg/predict-stress');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const predictionEl = document.getElementById('prediction');
+                    const confidenceEl = document.getElementById('confidence');
+                    const confidenceBarEl = document.getElementById('confidenceBar');
+                    
+                    predictionEl.textContent = data.prediction;
+                    predictionEl.className = `prediction-result prediction-${data.prediction.toLowerCase()}`;
+                    
+                    const confidencePercent = (data.confidence * 100).toFixed(1);
+                    confidenceEl.textContent = confidencePercent;
+                    confidenceBarEl.style.width = `${confidencePercent}%`;
+                    
+                    if (data.prediction === 'Stress') {
+                        confidenceBarEl.className = 'confidence-fill stress';
+                    } else {
+                        confidenceBarEl.className = 'confidence-fill';
+                    }
+                    
+                    // Auto-update prediction every 5 seconds when simulation is running
+                    if (currentBPM > 0 && !predictionUpdateInterval) {
+                        predictionUpdateInterval = setInterval(getMLPrediction, 5000);
+                    }
+                } else {
+                    document.getElementById('prediction').textContent = 'Error';
+                    console.error('ML prediction failed:', data);
+                }
+            } catch (error) {
+                document.getElementById('prediction').textContent = 'Connection Error';
+                console.error('Failed to get ML prediction:', error);
+            }
         }
         
         // DATA LABELING FUNCTIONS
