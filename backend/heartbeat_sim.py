@@ -800,9 +800,9 @@ async def live_monitor():
             const samplesPerBeat = 25;
             const beatProgress = (index % samplesPerBeat) / samplesPerBeat;
             
-            // Amplitude scales UP with BPM (higher HR = bigger waves)
-            // 60 BPM: scale 1.0, 90 BPM: scale 1.5, 120 BPM: scale 2.0, 150 BPM: scale 2.5
-            const amplitudeScale = 0.5 + (bpm / 60);
+            // Amplitude scales UP significantly with BPM (higher HR = much bigger waves)
+            // 60 BPM: scale 1.0, 90 BPM: scale 2.0, 120 BPM: scale 3.0, 150 BPM: scale 4.0
+            const amplitudeScale = 0.5 + (bpm / 30);
             
             let amplitude = 0;
             if (beatProgress < 0.1) {
