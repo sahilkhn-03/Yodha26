@@ -141,10 +141,38 @@ Voice Stress Model ──────┘
 **Status:** Basic implementation exists, advanced features planned
 
 **Current:** Simple heart rate classification
+
 **Planned:** 
 - Heart Rate Variability (HRV) analysis
 - Stress pattern recognition
 - Baseline comparison and anomaly detection
+
+### 5. **Remote Photoplethysmography (rPPG)** 🔮
+**Status:** Future enhancement - contactless heart rate detection
+
+**Purpose:** Video-based heart rate measurement as a second method for cardiovascular monitoring
+
+**Technology:**
+- Remote photoplethysmography (rPPG) extracts heart rate from subtle color changes in facial skin
+- Uses standard webcam video without any physical contact
+- Analyzes blood volume pulse through pixel intensity variations
+
+**Benefits:**
+- **Contactless:** No wearables or sensors required
+- **Multi-Modal Validation:** Cross-validates with existing heart rate methods
+- **Accessibility:** Works with any standard camera
+- **Clinical Value:** Provides additional cardiovascular stress indicators
+
+**Implementation Approach:**
+- Extract facial ROI (forehead, cheeks) from MediaPipe landmarks
+- Apply signal processing to isolate pulse frequency
+- Use Independent Component Analysis (ICA) or POS (Plane-Orthogonal-to-Skin)
+- Integrate rPPG heart rate into multi-modal stress assessment
+
+**Research Foundation:**
+- Established medical technique validated in numerous studies
+- Accuracy comparable to finger-based pulse oximeters in controlled conditions
+- Complements existing facial stress analysis pipeline
 
 ---
 
