@@ -67,8 +67,12 @@ export function ECGMonitor() {
           setStressScore(data.stress_score);
           console.log('✅ Stress Score updated:', data.stress_score);
         }
-      } catch (e) {
-        console.error('❌ Malformed WS message', e);
+        } catch (e) {
+          console.error('❌ Malformed WS message', e);
+        }
+      };
+      
+      ws.onerror = () => {
         console.error('⚠ ECG WebSocket error');
       };
       
