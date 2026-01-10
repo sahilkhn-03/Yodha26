@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  voice-stress-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voice-stress-api
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount models directory for easy updates
+      - ./models:/app/models:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - voice-stress-network
+
+networks:
+  voice-stress-network:
+    driver: bridge

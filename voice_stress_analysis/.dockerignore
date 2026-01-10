@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data & Datasets
+dataset/
+*.wav
+*.mp3
+*.ogg
+*.flac
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# Documentation
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+
+# Tests
+test_*.py
+*_test.py
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+project/
+node_modules/
+
+# Training files
+train_*.py
+interactive_demo.py
+download_dataset.py
+setup_dataset.py

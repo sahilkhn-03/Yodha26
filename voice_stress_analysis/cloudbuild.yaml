@@ -1,0 +1,54 @@
+# Google Cloud Build configuration for Voice Stress API
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/voice-stress-api:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/voice-stress-api:latest'
+      - '.'
+    dir: 'voice_stress_analysis'
+
+  # Push the image to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/voice-stress-api:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/voice-stress-api:latest'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'voice-stress-api'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/voice-stress-api:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '8001'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--max-instances'
+      - '10'
+      - '--timeout'
+      - '300'
+
+images:
+  - 'gcr.io/$PROJECT_ID/voice-stress-api:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/voice-stress-api:latest'
+
+timeout: 1200s
