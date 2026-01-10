@@ -37,30 +37,54 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
 
     async function startCamera() {
       try {
+        console.log('🎥 Requesting camera access...');
+        
+        // Request camera access FIRST
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          }, 
+          audio: false 
+        });
+        
+        console.log('✅ Camera access granted');
+        
         // Wait for React to render the video element
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => requestAnimationFrame(resolve));
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         if (!videoRef.current) {
-          console.error('Video element not found in DOM');
+          console.error('❌ Video element not found in DOM');
+          if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+          }
           return;
         }
         
-        console.log('Starting camera...');
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-        
-        if (!videoRef.current) {
-          console.error('Video ref lost during getUserMedia');
-          return;
-        }
-        
+        console.log('📹 Attaching stream to video element...');
+        console.log('📹 Attaching stream to video element...');
         videoRef.current.srcObject = stream;
+        
+        // Wait for video metadata to load
+        await new Promise((resolve, reject) => {
+          if (!videoRef.current) {
+            reject(new Error('Video ref lost'));
+            return;
+          }
+          videoRef.current.onloadedmetadata = resolve;
+          videoRef.current.onerror = reject;
+        });
+        
         await videoRef.current.play();
         running = true;
-        console.log('✅ Camera started, backend will process face detection');
+        console.log('✅ Camera started successfully! Video dimensions:', 
+          videoRef.current.videoWidth, 'x', videoRef.current.videoHeight);
+        console.log('🔌 Backend will process face detection');
         
-        // Store landmarks received from backend
+        // Store landmarks and optional feature estimates received from backend
         let currentLandmarks: Array<{ x: number; y: number; z: number }> | null = null;
+        let currentFeatures: { avg_eye_aspect_ratio?: number; avg_eyebrow_tension?: number; jaw_drop?: number } | null = null;
         
         // Draw loop: show raw video with subtle face mesh overlay
         const drawLoop = () => {
@@ -73,9 +97,15 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
             // Draw raw video as base
             ctx.drawImage(videoRef.current, 0, 0);
             
-            // Draw subtle face mesh overlay
+            // Draw subtle face mesh overlay (with optional feature labels)
             if (currentLandmarks && currentLandmarks.length > 0) {
-              drawFaceMesh(ctx, currentLandmarks, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
+              drawFaceMesh(
+                ctx,
+                currentLandmarks,
+                overlayCanvasRef.current.width,
+                overlayCanvasRef.current.height,
+                currentFeatures || undefined
+              );
             }
           }
           animationFrameRef.current = requestAnimationFrame(drawLoop);
@@ -83,7 +113,10 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         drawLoop();
         
         // Setup WebSocket for ML-based stress prediction (XGBoost - 77.3% accuracy)
-        const ws = new WebSocket('ws://localhost:8000/ws/ml-stress-analysis');
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+        const wsProtocol = backendUrl.startsWith('https') ? 'wss' : 'ws';
+        const wsUrl = backendUrl.replace(/^https?/, wsProtocol);
+        const ws = new WebSocket(`${wsUrl}/ws/ml-stress-analysis`);
         ws.onopen = () => {
           console.log('✅ Connected to ML stress analysis (XGBoost - 77.3% accuracy)');
           console.log('🎥 Starting frame capture...');
@@ -101,6 +134,7 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
               // No face detected - clear visualization
               console.log('⚠️ No face detected');
               currentLandmarks = null;
+              currentFeatures = null;
               prevMetricsRef.current = null;
               onMetricsUpdate?.({
                 eye_openness: 0,
@@ -120,9 +154,20 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
             } else {
               currentLandmarks = null;
             }
-            
+
+            // Store raw features for overlay labels (if present)
+            if (data.features) {
+              currentFeatures = {
+                avg_eye_aspect_ratio: data.features.avg_eye_aspect_ratio,
+                avg_eyebrow_tension: data.features.avg_eyebrow_tension,
+                jaw_drop: data.features.jaw_drop,
+              };
+            } else {
+              currentFeatures = null;
+            }
+
             // Convert ML features to UI metrics - INTUITIVE SCALING
-            const features = data.features;
+            const features = data.features || {};
             
             // Eye Aspect Ratio: LITERAL eye openness (high % = wide open, low % = closed)
             // Typical range: 0.15 (closed) to 0.40 (wide open)
@@ -164,7 +209,16 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         };
         wsRef.current = ws;
       } catch (err) {
-        console.error('Camera start error', err);
+        console.error('❌ Camera initialization failed:', err);
+        if (err instanceof Error) {
+          console.error('Error details:', err.message);
+        }
+        // Clean up stream if it was created
+        if (stream) {
+          stream.getTracks().forEach(t => t.stop());
+          stream = null;
+        }
+        alert(`Camera failed to start: ${err instanceof Error ? err.message : 'Unknown error'}. Please check browser permissions.`);
       }
     }
 
@@ -285,7 +339,14 @@ export function CameraDisplay({ isCameraEnabled, onCameraToggle, onMetricsUpdate
         )}
         {isCameraEnabled && (
           <>
-            <video ref={videoRef} className="hidden" muted playsInline />
+            {/* Video element must be rendered (not hidden) for stream to work properly */}
+            <video 
+              ref={videoRef} 
+              className="absolute inset-0 w-full h-full object-cover opacity-0 pointer-events-none" 
+              muted 
+              playsInline 
+              autoPlay
+            />
             <canvas 
               ref={overlayCanvasRef} 
               className="absolute inset-0 w-full h-full object-cover"

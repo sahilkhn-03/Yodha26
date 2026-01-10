@@ -1,0 +1,53 @@
+# Git files
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment
+.env
+.env.local
+.venv
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test_*.py
+test_*.html
+demo_*.py
+*_test.py
+
+# Documentation
+*.md
+docs/
+
+# Data
+fer2013_data/
+ravdess_data/
+temp_frame.jpg
+
+# Logs
+*.log

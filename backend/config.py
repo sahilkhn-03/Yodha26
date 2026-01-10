@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "Facial Stress Predictor Backend"
     DEBUG: bool = True
     
+    # Gemini AI Configuration
+    GEMINI_API_KEY: str = ""
+    
     # CORS Origins (comma-separated in .env)
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8501"
     

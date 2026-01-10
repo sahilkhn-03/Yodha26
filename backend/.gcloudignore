@@ -1,0 +1,35 @@
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Ignore IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore data files
+ml_dataset/
+fer2013_data/
+*.csv
+*.pkl.bak
+
+# Ignore docs
+*.md
+!README.md
+
+# Ignore test files
+test_*.py
+demo_*.py
+*_demo.py

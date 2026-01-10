@@ -11,9 +11,6 @@ from models import User, Patient, Assessment
 from routes_auth import router as auth_router
 from routes_patients import router as patients_router
 from routes_assessments import router as assessments_router
-from routes_training_data import router as training_router
-from routes_ml_heartrate import router as ml_router
-from routes_ecg_integration import router as ecg_router
 # Unified WebSocket manager (consolidates routes_websocket + routes_face_analysis)
 from websocket_manager import router as websocket_router
 # ML-based stress prediction with trained XGBoost model
@@ -36,7 +33,7 @@ except Exception as e:
     print("       Get it from: Supabase Dashboard -> Settings -> Database -> Connection String")
 
 app = FastAPI(
-    title="Facial Stress Predictor Backend",
+    title="NeuroBalance AI Backend",
     version="1.0.0",
     description="AI-driven psychosomatic assessment platform backend API",
     docs_url="/docs",  # Interactive API documentation
@@ -52,14 +49,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Health check endpoint for Cloud Run
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for container orchestration"""
+    return {
+        "status": "healthy",
+        "service": "facial-stress-api",
+        "version": "1.0.0",
+        "ml_model": "XGBoost 77.3%"
+    }
+
 # Include routers
 # This connects all route files to the main app
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 app.include_router(patients_router, prefix="/patients", tags=["Patients"])
 app.include_router(assessments_router, prefix="/assessments", tags=["Assessments"])
-app.include_router(training_router, tags=["Training Data"])
-app.include_router(ml_router, tags=["ML Predictions"])
-app.include_router(ecg_router, tags=["ECG Integration"])
 # Unified WebSocket router handles all WebSocket endpoints under /ws/*
 app.include_router(websocket_router, prefix="/ws", tags=["WebSocket"])
 # ML stress prediction endpoints (WebSocket + REST)

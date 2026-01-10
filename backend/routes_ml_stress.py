@@ -13,18 +13,14 @@ import sys
 import os
 from pathlib import Path
 
-# Add ai directory to path
-ai_dir = Path(__file__).parent.parent / 'ai'
-sys.path.insert(0, str(ai_dir))
-
-# Import the trained model
+# Import the trained model from local directory
 try:
     from inference_stress_model import StressPredictor
     ML_MODEL_AVAILABLE = True
     print("[OK] Loading trained XGBoost stress model...")
     stress_predictor = StressPredictor(
-        model_path=ai_dir / 'models' / 'stress_predictor.pkl',
-        scaler_path=ai_dir / 'models' / 'feature_scaler.pkl'
+        model_path='models/models/stress_predictor.pkl',
+        scaler_path='models/models/feature_scaler.pkl'
     )
     print("[OK] ✅ XGBoost stress model loaded (77.3% accuracy)")
 except Exception as e:

@@ -13,15 +13,8 @@ import cv2
 import base64
 from typing import Dict, Any, Optional
 
-# Add AI directory to path
-repo_root = Path(__file__).parent.parent
-ai_dir = repo_root / "ai"
-if str(ai_dir) not in sys.path:
-    sys.path.insert(0, str(ai_dir))
-
-# Import trained model components
+# Import trained model components from local directory
 try:
-    from train_stress_model import FacialFeatureExtractor
     from inference_stress_model import StressPredictor
     PREDICTOR = None
     EXTRACTOR = None
@@ -30,11 +23,11 @@ try:
         """Lazy load predictor (initialize only when needed)."""
         global PREDICTOR, EXTRACTOR
         if PREDICTOR is None:
-            model_path = ai_dir / "models" / "stress_predictor.pkl"
-            scaler_path = ai_dir / "models" / "feature_scaler.pkl"
+            model_path = Path("models/models/stress_predictor.pkl")
+            scaler_path = Path("models/models/feature_scaler.pkl")
             if model_path.exists() and scaler_path.exists():
-                PREDICTOR = StressPredictor(model_path, scaler_path)
-                EXTRACTOR = FacialFeatureExtractor()
+                PREDICTOR = StressPredictor(str(model_path), str(scaler_path))
+                # EXTRACTOR not needed - predictor has its own
                 print("✓ ML Stress Predictor loaded successfully")
             else:
                 print(f"⚠ Model files not found: {model_path}")

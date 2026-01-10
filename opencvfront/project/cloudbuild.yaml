@@ -1,0 +1,8 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/brilliant-flame-475104-c2/facial-stress-frontend', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/brilliant-flame-475104-c2/facial-stress-frontend']
+images:
+  - 'gcr.io/brilliant-flame-475104-c2/facial-stress-frontend'
+timeout: 1200s

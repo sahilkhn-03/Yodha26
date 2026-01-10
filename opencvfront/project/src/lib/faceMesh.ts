@@ -28,7 +28,8 @@ export function drawFaceMesh(
   ctx: CanvasRenderingContext2D,
   landmarks: Array<{ x: number; y: number; z: number }>,
   width: number,
-  height: number
+  height: number,
+  features?: { avg_eye_aspect_ratio?: number; avg_eyebrow_tension?: number; jaw_drop?: number }
 ) {
   // Draw connections with visible but transparent lines
   ctx.strokeStyle = 'rgba(0, 255, 0, 0.45)'; // 45% opacity - clearly visible
@@ -55,6 +56,35 @@ export function drawFaceMesh(
       ctx.beginPath();
       ctx.arc(landmark.x * width, landmark.y * height, 2, 0, 2 * Math.PI);
       ctx.fill();
+    }
+  }
+
+  // If feature estimates are provided, display compact labels near relevant regions
+  if (features) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.font = '12px Inter, Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    // Eye openness near left eye (use landmark 33)
+    const leftEye = landmarks[33];
+    if (leftEye && typeof features.avg_eye_aspect_ratio === 'number') {
+      const txt = `Eye: ${Math.round(features.avg_eye_aspect_ratio * 100) / 100}`;
+      ctx.fillText(txt, leftEye.x * width + 6, leftEye.y * height - 10);
+    }
+
+    // Brow tension near left eyebrow (use landmark 70)
+    const leftBrow = landmarks[70];
+    if (leftBrow && typeof features.avg_eyebrow_tension === 'number') {
+      const txt = `Brow: ${Math.round(features.avg_eyebrow_tension * 1000) / 100}`;
+      ctx.fillText(txt, leftBrow.x * width + 6, leftBrow.y * height - 10);
+    }
+
+    // Jaw drop near chin (use landmark 152)
+    const chin = landmarks[152];
+    if (chin && typeof features.jaw_drop === 'number') {
+      const txt = `Jaw: ${Math.round(features.jaw_drop * 1000) / 100}`;
+      ctx.fillText(txt, chin.x * width + 6, chin.y * height - 10);
     }
   }
 }
